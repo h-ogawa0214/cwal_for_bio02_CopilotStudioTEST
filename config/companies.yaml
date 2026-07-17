@@ -1,0 +1,98 @@
+companies:
+  - name: アステラス製薬
+    list_url: https://jp.newsroom.astellas.com/news
+    enabled: true
+    source_type: html_css
+    config:
+      item_selector: "li.wd_item"
+      title_selector: "div.wd_title a"
+      date_selector: "div.wd_date"
+      link_selector: "div.wd_title a"
+      summary_selector: "div.wd_summary"
+
+  - name: 大塚ホールディングス
+    list_url: https://www.otsuka.com/jp/ir/news/
+    enabled: true
+    source_type: playwright
+    config:
+      wait_selector: ".eir a, .eir_list a, a[href*='pdf'], a[href*='news']"
+      link_selector: ".eir a"
+      min_title_length: 12
+      same_host_only: false
+
+  - name: 中外製薬
+    list_url: https://www.chugai-pharm.co.jp/news/
+    enabled: true
+    source_type: html_css
+    config:
+      item_selector: "li.ist-list01__item"
+      title_selector: "a.ist-list01__titleText"
+      date_selector: "time.ist-list01__date"
+      link_selector: "a.ist-list01__titleText"
+
+  - name: 協和キリン
+    list_url: https://www.kyowakirin.co.jp/pressroom/news_releases/index.html
+    enabled: true
+    source_type: playwright
+    config:
+      wait_selector: "a[href*='news_releases'], a[href*='press'], a[href*='.pdf']"
+      link_selector: "a[href*='news_releases'], a[href*='.pdf']"
+      min_title_length: 12
+      same_host_only: true
+
+  - name: 住友ファーマ
+    list_url: https://www.sumitomo-pharma.co.jp/news/ir/
+    enabled: true
+    source_type: rss
+    config:
+      feed_url: https://www.sumitomo-pharma.co.jp/news/rss/index.xml
+
+  - name: 明治製菓ファルマ
+    list_url: https://www.meiji-seika-pharma.co.jp/pressrelease/
+    enabled: true
+    source_type: xlsx
+    config:
+      xlsx_url: https://www.meiji-seika-pharma.co.jp/pressrelease/xlsx/pressrelease.xlsx
+      title_column: title
+      date_column: date
+      url_column: url
+
+  - name: 杏林製薬
+    list_url: https://www.kyorin-pharm.co.jp/news/
+    enabled: true
+    source_type: html_css
+    config:
+      item_selector: "dl.divide-y > div"
+      title_selector: "dd a"
+      date_selector: "dt"
+      link_selector: "dd a"
+
+  - name: 持田製薬
+    list_url: https://www.mochida.co.jp/news/
+    enabled: true
+    source_type: playwright
+    config:
+      wait_selector: ".eir a, a[href*='pdf'], a[href*='news']"
+      link_selector: ".eir a"
+      min_title_length: 12
+      same_host_only: false
+
+  - name: 科研製薬
+    list_url: https://www.kaken.co.jp/nr/
+    enabled: true
+    source_type: playwright
+    config:
+      wait_selector: ".eir a, a[href*='pdf'], a[href*='nr']"
+      link_selector: ".eir a"
+      min_title_length: 12
+      same_host_only: false
+
+  - name: レナサイエンス
+    list_url: https://www.renascience.co.jp/ir/ir_news/
+    enabled: true
+    source_type: playwright
+    config:
+      wait_selector: "a[href*='ir'], a[href*='news'], a[href*='pdf'], article a, .entry a"
+      link_selector: "main a, .entry-content a, article a"
+      min_title_length: 10
+      same_host_only: true
