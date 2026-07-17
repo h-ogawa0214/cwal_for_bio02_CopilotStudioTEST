@@ -71,6 +71,7 @@ def _process_raw_items(
                 raw,
                 detail.paragraph,
                 reference_url=detail.reference_url,
+                source_text=detail.source_text,
             )
         except Exception:
             logger.exception("Failed to curate: %s", raw.url)

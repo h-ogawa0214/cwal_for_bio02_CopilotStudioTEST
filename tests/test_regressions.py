@@ -3,11 +3,12 @@ from __future__ import annotations
 import unittest
 from datetime import date
 from pathlib import Path
+from unittest.mock import MagicMock
 
-from src.curator import _is_vague_title
-from src.detail import _select_substantive_paragraph
+from src.curator import Curator, _load_editorial_examples, _is_vague_title
+from src.detail import _select_substantive_paragraph, extract_release_detail
 from src.extractors.tdnet import normalize_tdnet_code, parse_tdnet_list_html
-from src.models import Company
+from src.models import Company, RawRelease
 from src.textutil import first_paragraph, parse_date
 
 
@@ -95,6 +96,57 @@ class ExtractionRegressionTests(unittest.TestCase):
         self.assertTrue(items[0].url.endswith("140120260717000001.pdf"))
         self.assertEqual(items[1].company, "協和キリン")
         self.assertEqual(str(items[1].published_on), "2026-07-17")
+
+    def test_editorial_examples_are_loaded(self) -> None:
+        examples = _load_editorial_examples()
+        self.assertEqual(len(examples), 10)
+        self.assertTrue(all(example.get("output_title") for example in examples))
+        self.assertTrue(all(example.get("output_lead") for example in examples))
+
+    def test_html_detail_keeps_source_text_for_editorial_selection(self) -> None:
+        http = MagicMock()
+        http.get_text.return_value = """
+        <html><article>
+          <p>短いヘッダー</p>
+          <p>株式会社テスト（本社：東京）は、新たな第III相試験を開始したことを発表しました。</p>
+          <p>試験の詳細を説明する二つ目の段落です。</p>
+        </article></html>
+        """
+        detail = extract_release_detail(
+            RawRelease(
+                company="テスト",
+                title="第III相試験を開始",
+                url="https://example.com/release",
+            ),
+            http,
+        )
+        self.assertIn("二つ目の段落", detail.source_text)
+
+    def test_curator_uses_editorial_title_and_lead(self) -> None:
+        curator = Curator.__new__(Curator)
+        curator.client = object()
+        curator._llm_decide = MagicMock(
+            return_value={
+                "keep": True,
+                "reason": "editorial fit",
+                "title": "親会社、子会社が治験を開始",
+                "lead": "子会社は、対象患者における第III相試験を国内の複数施設で開始したことを発表しました。今後、有効性と安全性を評価します。",
+            }
+        )
+        item = curator.curate(
+            RawRelease(
+                company="親会社",
+                title="治験開始のお知らせ",
+                url="https://example.com/release",
+                published_on=date(2026, 7, 18),
+            ),
+            "子会社は治験を開始しました。",
+            source_text="親会社の子会社は、対象患者における第III相試験を開始しました。",
+        )
+        self.assertIsNotNone(item)
+        assert item is not None
+        self.assertEqual(item.title, "親会社、子会社が治験を開始")
+        self.assertIn("対象患者", item.paragraph)
 
 
 if __name__ == "__main__":

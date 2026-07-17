@@ -19,6 +19,15 @@ class ExtractedDetail:
     paragraph: str
     published_on: date | None = None
     reference_url: str = ""
+    source_text: str = ""
+
+
+_MAX_SOURCE_TEXT = 12000
+
+
+def _source_text(paragraphs: list[str]) -> str:
+    text = "\n\n".join(p for p in paragraphs if p)
+    return text[:_MAX_SOURCE_TEXT]
 
 
 def extract_release_detail(release: RawRelease, http: HttpClient) -> ExtractedDetail:
@@ -37,6 +46,7 @@ def extract_release_detail(release: RawRelease, http: HttpClient) -> ExtractedDe
                 or first_paragraph(release.summary)
                 or release.title,
                 published_on=parse_date(text[:1500]),
+                source_text=text[:_MAX_SOURCE_TEXT],
             )
 
         html = http.get_text(url)
@@ -64,7 +74,11 @@ def extract_release_detail(release: RawRelease, http: HttpClient) -> ExtractedDe
             ]
             paragraph = _select_substantive_paragraphs(paragraphs)
             if paragraph:
-                return ExtractedDetail(paragraph=paragraph, published_on=published_on)
+                return ExtractedDetail(
+                    paragraph=paragraph,
+                    published_on=published_on,
+                    source_text=_source_text(paragraphs),
+                )
 
         body_text = normalize_whitespace(soup.get_text(" ", strip=True))
         return ExtractedDetail(
@@ -72,6 +86,7 @@ def extract_release_detail(release: RawRelease, http: HttpClient) -> ExtractedDe
             or first_paragraph(release.summary)
             or release.title,
             published_on=published_on,
+            source_text=body_text[:_MAX_SOURCE_TEXT],
         )
     except Exception:
         if release.reference_url and release.reference_url != release.url:
@@ -83,9 +98,11 @@ def extract_release_detail(release: RawRelease, http: HttpClient) -> ExtractedDe
                 paragraph=detail.paragraph,
                 published_on=detail.published_on,
                 reference_url=release.reference_url,
+                source_text=detail.source_text,
             )
         return ExtractedDetail(
             paragraph=first_paragraph(release.summary) or release.title,
+            source_text=release.summary or release.title,
         )
 
 
