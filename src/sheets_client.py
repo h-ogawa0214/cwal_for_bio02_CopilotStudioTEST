@@ -7,6 +7,7 @@ from typing import Iterable
 import gspread
 from google.oauth2.service_account import Credentials
 
+from .dedupe import release_fingerprint
 from .models import Company, CuratedRelease
 from .settings import Settings, validate_service_account_json
 
@@ -192,14 +193,30 @@ class SheetsClient:
         ]
 
     def existing_urls(self) -> set[str]:
+        urls, _ = self.existing_release_keys()
+        return urls
+
+    def existing_release_keys(self) -> tuple[set[str], set[str]]:
+        """Return known URLs and soft fingerprints already stored in releases."""
         ws = self._book.worksheet(self.releases_sheet_name)
         records = ws.get_all_records()
         urls: set[str] = set()
+        fingerprints: set[str] = set()
         for row in records:
             url = str(row.get("url") or "").strip()
             if url:
                 urls.add(url)
-        return urls
+            company = str(row.get("company_name") or "").strip()
+            published_on = str(row.get("published_on") or "").strip()
+            title = str(row.get("original_title") or row.get("title") or "").strip()
+            if company and title:
+                fingerprints.add(release_fingerprint(company, published_on, title))
+                display_title = str(row.get("title") or "").strip()
+                if display_title and display_title != title:
+                    fingerprints.add(
+                        release_fingerprint(company, published_on, display_title)
+                    )
+        return urls, fingerprints
 
     def upsert_releases(self, releases: list[CuratedRelease]) -> int:
         if not releases:
@@ -214,8 +231,15 @@ class SheetsClient:
             for row_number, row in enumerate(values[1:], start=2)
             if len(row) > url_index and row[url_index].strip()
         }
+        _, existing_fingerprints = self.existing_release_keys()
         rows_to_append = []
+        written = 0
         for item in releases:
+            fingerprint = release_fingerprint(
+                item.company,
+                item.published_on,
+                item.original_title or item.title,
+            )
             row = [
                 item.published_on.isoformat(),
                 item.company,
@@ -235,12 +259,20 @@ class SheetsClient:
                     values=[row],
                     value_input_option="USER_ENTERED",
                 )
+                existing_fingerprints.add(fingerprint)
+                written += 1
+            elif fingerprint in existing_fingerprints:
+                # Same disclosure already stored under another URL (e.g. prior crawl).
+                continue
             else:
                 rows_to_append.append(row)
+                existing_fingerprints.add(fingerprint)
+                existing_rows[item.url] = -1  # prevent same-batch URL dupes
+                written += 1
         if rows_to_append:
             ws.append_rows(rows_to_append, value_input_option="USER_ENTERED")
         self.sort_releases_by_date()
-        return len(releases)
+        return written
 
     def sort_releases_by_date(self) -> None:
         """Keep the releases sheet newest-first while leaving the header in place."""

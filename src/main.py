@@ -2,19 +2,18 @@ from __future__ import annotations
 
 import argparse
 import logging
-import re
 import sys
 from datetime import date, timedelta
 
 from .companies import load_companies_from_yaml
 from .curator import Curator
+from .dedupe import release_fingerprint
 from .detail import extract_release_detail
 from .extractors import fetch_company_releases, fetch_tdnet_releases
 from .http_client import HttpClient
 from .models import Company, CuratedRelease, RawRelease
 from .settings import load_settings
 from .sheets_client import SheetsClient
-from .textutil import normalize_whitespace
 
 
 logging.basicConfig(
@@ -24,11 +23,8 @@ logging.basicConfig(
 logger = logging.getLogger("pr-disclosure-curator")
 
 
-def _release_fingerprint(raw: RawRelease) -> str:
-    """Soft key to avoid keeping both a company-site copy and a TDnet copy."""
-    title = re.sub(r"\s+", "", normalize_whitespace(raw.title))
-    day = raw.published_on.isoformat() if raw.published_on else ""
-    return f"{raw.company}|{day}|{title}"
+def _fingerprint_for_raw(raw: RawRelease) -> str:
+    return release_fingerprint(raw.company, raw.published_on, raw.title)
 
 
 def _process_raw_items(
@@ -44,15 +40,15 @@ def _process_raw_items(
 ) -> int:
     errors = 0
     for raw in raw_items:
-        is_existing = raw.url in existing_urls
-        if is_existing and not reprocess_existing:
+        is_existing_url = raw.url in existing_urls
+        if is_existing_url and not reprocess_existing:
             continue
-        if raw.published_on and raw.published_on < cutoff and not is_existing:
+        if raw.published_on and raw.published_on < cutoff and not is_existing_url:
             continue
-        fingerprint = _release_fingerprint(raw)
-        if fingerprint in seen_fingerprints and not is_existing:
+        fingerprint = _fingerprint_for_raw(raw)
+        if fingerprint in seen_fingerprints and not is_existing_url:
             logger.info(
-                "Skip duplicate fingerprint %s | %s (%s)",
+                "Skip duplicate %s | %s (%s)",
                 raw.company,
                 raw.title,
                 raw.source_type,
@@ -62,10 +58,10 @@ def _process_raw_items(
             detail = extract_release_detail(raw, http)
             if detail.published_on:
                 raw.published_on = detail.published_on
-                fingerprint = _release_fingerprint(raw)
-                if fingerprint in seen_fingerprints and not is_existing:
+                fingerprint = _fingerprint_for_raw(raw)
+                if fingerprint in seen_fingerprints and not is_existing_url:
                     logger.info(
-                        "Skip duplicate fingerprint %s | %s (%s)",
+                        "Skip duplicate %s | %s (%s)",
                         raw.company,
                         raw.title,
                         raw.source_type,
@@ -82,9 +78,23 @@ def _process_raw_items(
             continue
         if item is None:
             continue
+        item_fingerprint = release_fingerprint(
+            item.company,
+            item.published_on,
+            item.original_title or item.title,
+        )
+        if item_fingerprint in seen_fingerprints and not is_existing_url:
+            logger.info(
+                "Skip duplicate %s | %s (%s)",
+                item.company,
+                item.title,
+                raw.source_type,
+            )
+            continue
         curated.append(item)
         existing_urls.add(item.url)
         seen_fingerprints.add(fingerprint)
+        seen_fingerprints.add(item_fingerprint)
         logger.info("KEEP %s | %s", item.company, item.title)
     return errors
 
@@ -138,11 +148,10 @@ def run(seed_only: bool = False, reprocess_existing: bool = False) -> int:
         companies = [c for c in yaml_companies if c.enabled]
         logger.warning("Using local YAML companies (%s)", len(companies))
 
-    existing_urls = sheets.existing_urls()
+    existing_urls, seen_fingerprints = sheets.existing_release_keys()
     http = HttpClient(settings.user_agent, settings.request_timeout_seconds)
     curator = Curator(settings)
     cutoff = date.today() - timedelta(days=settings.lookback_days)
-    seen_fingerprints: set[str] = set()
 
     curated: list[CuratedRelease] = []
     errors = 0
