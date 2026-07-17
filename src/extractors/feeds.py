@@ -54,7 +54,7 @@ class XlsxExtractor(Extractor):
         xlsx_url = cfg.get("xlsx_url")
         if not xlsx_url:
             raise ValueError(f"{company.name}: xlsx_url is required")
-        content = self.http.get_bytes(xlsx_url, referer=company.list_url)
+        content = self._download_xlsx(xlsx_url, referer=company.list_url)
         wb = load_workbook(BytesIO(content), data_only=True)
         ws = wb.active
         rows = list(ws.iter_rows(values_only=True))
@@ -93,3 +93,28 @@ class XlsxExtractor(Extractor):
             if len(results) >= limit:
                 break
         return results
+
+    def _download_xlsx(self, xlsx_url: str, referer: str) -> bytes:
+        try:
+            return self.http.get_bytes(xlsx_url, referer=referer)
+        except Exception:
+            # Some hosts block datacenter IPs/User-Agents on direct downloads.
+            from playwright.sync_api import sync_playwright
+
+            with sync_playwright() as p:
+                browser = p.chromium.launch(headless=True)
+                context = browser.new_context(
+                    user_agent=self.http._client.headers["User-Agent"],
+                    extra_http_headers={"Referer": referer},
+                )
+                page = context.new_page()
+                page.goto(referer, wait_until="domcontentloaded", timeout=60000)
+                response = page.request.get(xlsx_url)
+                if response.status >= 400:
+                    browser.close()
+                    raise RuntimeError(
+                        f"Failed to download xlsx via playwright: {response.status}"
+                    )
+                content = response.body()
+                browser.close()
+                return content

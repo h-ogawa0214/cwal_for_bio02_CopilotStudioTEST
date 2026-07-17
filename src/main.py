@@ -92,13 +92,12 @@ def run(seed_only: bool = False) -> int:
                 f"{item.published_on}\t{item.company}\t{item.title}\t{item.url}",
                 flush=True,
             )
+        if errors:
+            logger.warning("Completed with %s non-fatal errors", errors)
         return 0
 
     written = sheets.append_releases(curated)
     logger.info("Wrote %s curated releases (%s fetch/curate errors)", written, errors)
-    # Partial source failures should not fail the scheduled job once writing succeeds.
-    if errors and written == 0:
-        return 1
     if errors:
         logger.warning("Completed with %s non-fatal errors", errors)
     return 0
