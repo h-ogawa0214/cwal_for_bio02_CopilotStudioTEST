@@ -5,7 +5,12 @@ from datetime import date
 from pathlib import Path
 from unittest.mock import MagicMock
 
-from src.curator import Curator, _load_editorial_examples, _is_vague_title
+from src.curator import (
+    Curator,
+    _is_hard_discard_title,
+    _load_editorial_examples,
+    _is_vague_title,
+)
 from src.detail import _select_substantive_paragraph, extract_release_detail
 from src.extractors.tdnet import normalize_tdnet_code, parse_tdnet_list_html
 from src.models import Company, RawRelease
@@ -46,6 +51,21 @@ class ExtractionRegressionTests(unittest.TestCase):
             "ペムブロリズマブとの併用療法について米国で承認を取得"
         )
         self.assertFalse(_is_vague_title(title))
+
+    def test_ir_qa_and_grant_receipt_titles_are_hard_discarded(self) -> None:
+        discarded = [
+            "助成金の受領に関するお知らせ",
+            "よくあるご質問と回答",
+            "決算説明会における質問と回答",
+            "2026年4月期通期決算説明会の質疑応答",
+        ]
+        for title in discarded:
+            with self.subTest(title=title):
+                self.assertTrue(_is_hard_discard_title(title))
+
+        self.assertFalse(
+            _is_hard_discard_title("研究開発助成事業への採択に関するお知らせ")
+        )
 
     def test_kyowa_style_pdf_paragraph(self) -> None:
         text = """

@@ -38,6 +38,13 @@ DISCARD_KEYWORDS = [
     "お別れの会",
 ]
 
+HARD_DISCARD_TITLE_PATTERNS = [
+    re.compile(r"助成金(?:の)?受領(?:に関する)?(?:お知らせ)?"),
+    re.compile(r"よくあるご質問(?:と回答)?"),
+    re.compile(r"説明会.*(?:質問|質疑)"),
+    re.compile(r"(?:質問と回答|質疑応答|Q\s*&\s*A)", re.IGNORECASE),
+]
+
 KEEP_KEYWORDS = [
     "承認",
     "申請",
@@ -110,6 +117,11 @@ def heuristic_decision(title: str, paragraph: str) -> tuple[bool | None, str]:
     return None, "heuristic undecided"
 
 
+def _is_hard_discard_title(title: str) -> bool:
+    normalized = normalize_whitespace(title)
+    return any(pattern.search(normalized) for pattern in HARD_DISCARD_TITLE_PATTERNS)
+
+
 class Curator:
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
@@ -127,6 +139,8 @@ class Curator:
         published_on = release.published_on or date.today()
         paragraph = first_paragraph(paragraph or release.summary or release.title)
         title = normalize_whitespace(release.title)
+        if _is_hard_discard_title(title):
+            return None
 
         keep: bool | None
         reason: str
