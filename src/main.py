@@ -38,7 +38,12 @@ def run(seed_only: bool = False, reprocess_existing: bool = False) -> int:
     if seed_only:
         return 0
 
-    companies = [c for c in sheets.load_companies() if c.enabled]
+    locally_disabled = {company.name for company in yaml_companies if not company.enabled}
+    companies = [
+        company
+        for company in sheets.load_companies()
+        if company.enabled and company.name not in locally_disabled
+    ]
     if not companies:
         # Fallback to local YAML if sheet unexpectedly empty after seed attempt
         companies = [c for c in yaml_companies if c.enabled]

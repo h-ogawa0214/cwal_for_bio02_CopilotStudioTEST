@@ -43,6 +43,9 @@
 - `config_json`（抽出用設定の JSON）
 - `notes`
 
+`config/companies.yaml` で `enabled: false` の企業は、安全停止としてシート側が
+`TRUE` でも巡回しません。再開時は両方を `true` / `TRUE` に戻します。
+
 ## 選出ロジック
 
 1. キーワードによる一次判定（人事・受賞・採用などは除外、承認・治験・提携などは残す）
