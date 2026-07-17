@@ -12,3 +12,10 @@ class Extractor:
 
     def fetch(self, company: Company, limit: int) -> list[RawRelease]:
         raise NotImplementedError
+
+    @staticmethod
+    def alternate_url(company: Company, primary_url: str) -> str:
+        mappings = company.config.get("alternate_urls", {})
+        if not isinstance(mappings, dict):
+            return ""
+        return str(mappings.get(primary_url) or "").strip()

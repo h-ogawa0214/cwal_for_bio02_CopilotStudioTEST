@@ -22,6 +22,7 @@ class RawRelease(BaseModel):
     published_on: date | None = None
     summary: str = ""
     source_type: str = ""
+    reference_url: str = ""
 
 
 class CuratedRelease(BaseModel):
@@ -33,4 +34,5 @@ class CuratedRelease(BaseModel):
     keep: bool
     reason: str = ""
     original_title: str = ""
+    reference_url: str = ""
     fetched_at: datetime = Field(default_factory=datetime.utcnow)

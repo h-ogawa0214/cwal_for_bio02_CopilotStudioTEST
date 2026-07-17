@@ -55,6 +55,7 @@ class HtmlCssExtractor(Extractor):
                     published_on=parse_date(date_text),
                     summary=summary,
                     source_type=self.source_type,
+                    reference_url=self.alternate_url(company, url),
                 )
             )
             if len(results) >= limit:
@@ -128,6 +129,7 @@ class PlaywrightExtractor(Extractor):
                     published_on=parse_date(date_text),
                     summary="",
                     source_type=self.source_type,
+                    reference_url=self.alternate_url(company, url),
                 )
             )
             if len(results) >= limit:

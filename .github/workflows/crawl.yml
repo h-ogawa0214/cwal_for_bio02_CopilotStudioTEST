@@ -7,6 +7,12 @@ on:
     - cron: "0 3 * * *"
     - cron: "0 8 * * *"
   workflow_dispatch:
+    inputs:
+      reprocess_existing:
+        description: Re-extract and update existing spreadsheet rows
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -43,4 +49,9 @@ jobs:
           OPENAI_MODEL: gpt-4o-mini
           LOOKBACK_DAYS: "14"
           MAX_ITEMS_PER_COMPANY: "30"
-        run: python -m src.main
+        run: |
+          if [[ "${{ inputs.reprocess_existing }}" == "true" ]]; then
+            python -m src.main --reprocess-existing
+          else
+            python -m src.main
+          fi

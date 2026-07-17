@@ -34,6 +34,7 @@ RELEASE_HEADERS = [
     "fetched_at",
     "decision_reason",
     "original_title",
+    "reference_url",
 ]
 
 
@@ -63,8 +64,14 @@ class SheetsClient:
             if not existing:
                 ws.append_row(headers, value_input_option="USER_ENTERED")
             else:
-                # Keep existing headers if already present; do not clobber user edits.
-                pass
+                missing = [header for header in headers if header not in existing]
+                if missing:
+                    start_col = len(existing) + 1
+                    ws.update(
+                        range_name=gspread.utils.rowcol_to_a1(1, start_col),
+                        values=[missing],
+                        value_input_option="USER_ENTERED",
+                    )
         return ws
 
     def load_companies(self) -> list[Company]:
@@ -124,23 +131,45 @@ class SheetsClient:
                 urls.add(url)
         return urls
 
-    def append_releases(self, releases: list[CuratedRelease]) -> int:
+    def upsert_releases(self, releases: list[CuratedRelease]) -> int:
         if not releases:
             return 0
         ws = self._book.worksheet(self.releases_sheet_name)
-        rows = []
+        values = ws.get_all_values()
+        headers = values[0] if values else RELEASE_HEADERS
+        url_index = headers.index("url")
+        existing_rows = {
+            row[url_index].strip(): row_number
+            for row_number, row in enumerate(values[1:], start=2)
+            if len(row) > url_index and row[url_index].strip()
+        }
+        rows_to_append = []
         for item in releases:
-            rows.append(
-                [
-                    item.published_on.isoformat(),
-                    item.company,
-                    item.title,
-                    item.paragraph,
-                    item.url,
-                    item.fetched_at.replace(tzinfo=timezone.utc).isoformat(),
-                    item.reason,
-                    item.original_title,
-                ]
-            )
-        ws.append_rows(rows, value_input_option="USER_ENTERED")
-        return len(rows)
+            row = [
+                item.published_on.isoformat(),
+                item.company,
+                item.title,
+                item.paragraph,
+                item.url,
+                item.fetched_at.replace(tzinfo=timezone.utc).isoformat(),
+                item.reason,
+                item.original_title,
+                item.reference_url,
+            ]
+            existing_row = existing_rows.get(item.url)
+            if existing_row:
+                end = gspread.utils.rowcol_to_a1(existing_row, len(RELEASE_HEADERS))
+                ws.update(
+                    range_name=f"A{existing_row}:{end}",
+                    values=[row],
+                    value_input_option="USER_ENTERED",
+                )
+            else:
+                rows_to_append.append(row)
+        if rows_to_append:
+            ws.append_rows(rows_to_append, value_input_option="USER_ENTERED")
+        return len(releases)
+
+    # Compatibility for older callers.
+    def append_releases(self, releases: list[CuratedRelease]) -> int:
+        return self.upsert_releases(releases)

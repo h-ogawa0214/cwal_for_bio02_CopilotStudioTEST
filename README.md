@@ -7,12 +7,15 @@
 - 対象企業一覧をスプレッドシートの `companies` シートで管理（社数増加を想定）
 - 1日3回（JST 9:00 / 12:00 / 17:00）GitHub Actions で巡回
 - 掲載価値のあるリリースだけを `releases` シートへ追記
-- タイトルが粗い場合は本文1段落から40字前後のタイトルを補正
+- 具体的な原題はそのまま保持し、粗いタイトルだけ本文1段落から40字前後に補正
+- 一覧の抜粋ではなく、詳細ページ／PDF本文の最初の実質的な段落を取得
 
 書き込み列:
 
-| published_on | company_name | title | paragraph | url | fetched_at | decision_reason | original_title |
-|---|---|---|---|---|---|---|---|
+| published_on | company_name | title | paragraph | url | fetched_at | decision_reason | original_title | reference_url |
+|---|---|---|---|---|---|---|---|---|
+
+`reference_url` は、公式URLから本文を取得できず別媒体を参照した場合だけ、その参照元URLを記録します。
 
 ## 対象企業（初期10社）
 
@@ -72,6 +75,7 @@ cp .env.example .env   # 値を埋める
 
 python -m src.main --seed-only   # companies / releases シート作成＋企業シード
 python -m src.main               # 巡回・選出・書き込み
+python -m src.main --reprocess-existing  # 既存URLを再抽出して行を更新
 ```
 
 ### 3. GitHub Actions
@@ -102,8 +106,21 @@ Actions タブから `workflow_dispatch` でも手動実行できます。
 {"feed_url": "https://example.com/news/rss.xml"}
 ```
 
+公式URLが取得できない個別記事に代替ソースを指定する例:
+
+```json
+{
+  "alternate_urls": {
+    "https://example.com/original-release.pdf": "https://prtimes.jp/example"
+  }
+}
+```
+
+この場合も `url` は公式URLのまま維持し、実際に代替ソースを使ったときだけ
+`reference_url` に代替ソースのURLを書き込みます。
+
 ## 注意
 
 - JS 描画の IR サイトは Playwright を使います。レイアウト変更で抽出が崩れたら `config_json` を更新してください
 - PDF 本文は先頭ページから段落抽出します（画像PDFは空になることがあります）
-- 同一 URL は再書き込みしません
+- 同一 URL は通常スキップします。手動実行の `reprocess_existing` では既存行を更新します

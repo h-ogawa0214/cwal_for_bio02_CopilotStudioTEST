@@ -7,7 +7,7 @@ from datetime import date, timedelta
 
 from .companies import load_companies_from_yaml
 from .curator import Curator
-from .detail import extract_body_paragraph
+from .detail import extract_release_detail
 from .extractors import fetch_company_releases
 from .http_client import HttpClient
 from .settings import load_settings
@@ -21,7 +21,7 @@ logging.basicConfig(
 logger = logging.getLogger("pr-disclosure-curator")
 
 
-def run(seed_only: bool = False) -> int:
+def run(seed_only: bool = False, reprocess_existing: bool = False) -> int:
     settings = load_settings()
     yaml_companies = load_companies_from_yaml()
 
@@ -64,13 +64,20 @@ def run(seed_only: bool = False) -> int:
                 continue
 
             for raw in raw_items:
-                if raw.url in existing_urls:
+                is_existing = raw.url in existing_urls
+                if is_existing and not reprocess_existing:
                     continue
-                if raw.published_on and raw.published_on < cutoff:
+                if raw.published_on and raw.published_on < cutoff and not is_existing:
                     continue
                 try:
-                    paragraph = extract_body_paragraph(raw, http)
-                    item = curator.curate(raw, paragraph)
+                    detail = extract_release_detail(raw, http)
+                    if detail.published_on:
+                        raw.published_on = detail.published_on
+                    item = curator.curate(
+                        raw,
+                        detail.paragraph,
+                        reference_url=detail.reference_url,
+                    )
                 except Exception:
                     logger.exception("Failed to curate: %s", raw.url)
                     errors += 1
@@ -96,8 +103,8 @@ def run(seed_only: bool = False) -> int:
             logger.warning("Completed with %s non-fatal errors", errors)
         return 0
 
-    written = sheets.append_releases(curated)
-    logger.info("Wrote %s curated releases (%s fetch/curate errors)", written, errors)
+    written = sheets.upsert_releases(curated)
+    logger.info("Upserted %s curated releases (%s fetch/curate errors)", written, errors)
     if errors:
         logger.warning("Completed with %s non-fatal errors", errors)
     return 0
@@ -110,8 +117,16 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Only ensure spreadsheet schema and seed companies sheet",
     )
+    parser.add_argument(
+        "--reprocess-existing",
+        action="store_true",
+        help="Re-extract and update existing URLs in the releases sheet",
+    )
     args = parser.parse_args(argv)
-    return run(seed_only=args.seed_only)
+    return run(
+        seed_only=args.seed_only,
+        reprocess_existing=args.reprocess_existing,
+    )
 
 
 if __name__ == "__main__":

@@ -41,6 +41,7 @@ class RssExtractor(Extractor):
                     published_on=published,
                     summary=summary,
                     source_type=self.source_type,
+                    reference_url=self.alternate_url(company, link),
                 )
             )
         return results
@@ -88,6 +89,7 @@ class XlsxExtractor(Extractor):
                     published_on=published,
                     summary="",
                     source_type=self.source_type,
+                    reference_url=self.alternate_url(company, url),
                 )
             )
             if len(results) >= limit:

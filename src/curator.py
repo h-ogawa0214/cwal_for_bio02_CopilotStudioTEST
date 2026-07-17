@@ -94,7 +94,12 @@ class Curator:
         self.criteria = _load_criteria()
         self.client = OpenAI(api_key=settings.openai_api_key) if settings.openai_api_key else None
 
-    def curate(self, release: RawRelease, paragraph: str) -> CuratedRelease | None:
+    def curate(
+        self,
+        release: RawRelease,
+        paragraph: str,
+        reference_url: str = "",
+    ) -> CuratedRelease | None:
         published_on = release.published_on or date.today()
         paragraph = first_paragraph(paragraph or release.summary or release.title)
         title = normalize_whitespace(release.title)
@@ -108,7 +113,10 @@ class Curator:
             llm = self._llm_decide(title, paragraph, release.company)
             keep = bool(llm["keep"])
             reason = str(llm.get("reason") or reason)
-            final_title = normalize_whitespace(str(llm.get("title") or title)) or title
+            if _is_vague_title(title):
+                final_title = (
+                    normalize_whitespace(str(llm.get("title") or title)) or title
+                )
         elif keep is None:
             # Without LLM, skip undecided items to avoid noisy sheet rows
             return None
@@ -128,6 +136,7 @@ class Curator:
             keep=True,
             reason=reason,
             original_title=title,
+            reference_url=reference_url,
             fetched_at=datetime.now(timezone.utc),
         )
 
@@ -177,3 +186,21 @@ class Curator:
         if len(base) > 42:
             return base[:41] + "…"
         return base or title
+
+
+def _is_vague_title(title: str) -> bool:
+    normalized = normalize_whitespace(title)
+    generic_titles = {
+        "お知らせ",
+        "ニュースリリース",
+        "プレスリリース",
+        "研究成果について",
+        "共同研究について",
+        "業務提携について",
+        "承認取得について",
+    }
+    if normalized in generic_titles or len(normalized) < 15:
+        return True
+    # A concrete title normally contains a named subject and an action. Long,
+    # descriptive originals must not be shortened merely for style.
+    return normalized.endswith("お知らせ") and len(normalized) < 24
