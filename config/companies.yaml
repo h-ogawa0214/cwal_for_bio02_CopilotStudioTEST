@@ -3,6 +3,7 @@ companies:
     list_url: https://jp.newsroom.astellas.com/news
     enabled: true
     source_type: html_css
+    stock_code: "4503"
     config:
       item_selector: "li.wd_item"
       title_selector: "div.wd_title a"
@@ -14,6 +15,7 @@ companies:
     list_url: https://www.otsuka.com/jp/ir/news/
     enabled: true
     source_type: playwright
+    stock_code: "4578"
     config:
       wait_selector: ".eir a, .eir_list a, a[href*='pdf'], a[href*='news']"
       link_selector: ".eir a"
@@ -24,6 +26,7 @@ companies:
     list_url: https://www.chugai-pharm.co.jp/news/
     enabled: true
     source_type: html_css
+    stock_code: "4519"
     config:
       item_selector: "li.ist-list01__item"
       title_selector: "a.ist-list01__titleText"
@@ -34,6 +37,7 @@ companies:
     list_url: https://www.kyowakirin.co.jp/pressroom/news_releases/index.html
     enabled: true
     source_type: playwright
+    stock_code: "4151"
     config:
       wait_selector: "a[href*='/pressroom/news_releases/'][href$='.pdf']"
       link_selector: "a[href*='/pressroom/news_releases/'][href$='.pdf']"
@@ -44,14 +48,17 @@ companies:
     list_url: https://www.sumitomo-pharma.co.jp/news/ir/
     enabled: true
     source_type: rss
+    stock_code: "4506"
     config:
       feed_url: https://www.sumitomo-pharma.co.jp/news/rss/index.xml
 
   - name: 明治製菓ファルマ
     list_url: https://www.meiji-seika-pharma.co.jp/pressrelease/
     # GitHub Actions IP から xlsx が 403 のため当面スキップ
+    # 非単独上場のため TDnet 証券コードなし（親会社は明治HD 2269）
     enabled: false
     source_type: xlsx
+    stock_code: ""
     config:
       xlsx_url: https://www.meiji-seika-pharma.co.jp/pressrelease/xlsx/pressrelease.xlsx
       title_column: title
@@ -63,6 +70,7 @@ companies:
     list_url: https://www.kyorin-pharm.co.jp/news/
     enabled: true
     source_type: html_css
+    stock_code: "4560"
     config:
       item_selector: "dl.divide-y > div"
       title_selector: "dd a"
@@ -73,6 +81,7 @@ companies:
     list_url: https://www.mochida.co.jp/news/
     enabled: true
     source_type: playwright
+    stock_code: "4534"
     config:
       wait_selector: ".eir a, a[href*='pdf'], a[href*='news']"
       link_selector: ".eir a"
@@ -83,6 +92,7 @@ companies:
     list_url: https://www.kaken.co.jp/nr/
     enabled: true
     source_type: playwright
+    stock_code: "4521"
     config:
       wait_selector: ".eir a, a[href*='pdf'], a[href*='nr']"
       link_selector: ".eir a"
@@ -93,6 +103,7 @@ companies:
     list_url: https://www.renascience.co.jp/ir/ir_news/
     enabled: true
     source_type: playwright
+    stock_code: "4889"
     config:
       wait_selector: "a[href*='ir'], a[href*='news'], a[href*='pdf'], article a, .entry a"
       link_selector: "main a, .entry-content a, article a"

@@ -11,6 +11,7 @@ class Company(BaseModel):
     list_url: str
     enabled: bool = True
     source_type: str
+    stock_code: str = ""
     config: dict[str, Any] = Field(default_factory=dict)
     notes: str = ""
 

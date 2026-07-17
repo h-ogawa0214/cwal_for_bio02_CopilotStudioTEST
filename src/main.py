@@ -2,16 +2,19 @@ from __future__ import annotations
 
 import argparse
 import logging
+import re
 import sys
 from datetime import date, timedelta
 
 from .companies import load_companies_from_yaml
 from .curator import Curator
 from .detail import extract_release_detail
-from .extractors import fetch_company_releases
+from .extractors import fetch_company_releases, fetch_tdnet_releases
 from .http_client import HttpClient
+from .models import Company, CuratedRelease, RawRelease
 from .settings import load_settings
 from .sheets_client import SheetsClient
+from .textutil import normalize_whitespace
 
 
 logging.basicConfig(
@@ -19,6 +22,71 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s %(message)s",
 )
 logger = logging.getLogger("pr-disclosure-curator")
+
+
+def _release_fingerprint(raw: RawRelease) -> str:
+    """Soft key to avoid keeping both a company-site copy and a TDnet copy."""
+    title = re.sub(r"\s+", "", normalize_whitespace(raw.title))
+    day = raw.published_on.isoformat() if raw.published_on else ""
+    return f"{raw.company}|{day}|{title}"
+
+
+def _process_raw_items(
+    raw_items: list[RawRelease],
+    *,
+    http: HttpClient,
+    curator: Curator,
+    cutoff: date,
+    existing_urls: set[str],
+    seen_fingerprints: set[str],
+    reprocess_existing: bool,
+    curated: list[CuratedRelease],
+) -> int:
+    errors = 0
+    for raw in raw_items:
+        is_existing = raw.url in existing_urls
+        if is_existing and not reprocess_existing:
+            continue
+        if raw.published_on and raw.published_on < cutoff and not is_existing:
+            continue
+        fingerprint = _release_fingerprint(raw)
+        if fingerprint in seen_fingerprints and not is_existing:
+            logger.info(
+                "Skip duplicate fingerprint %s | %s (%s)",
+                raw.company,
+                raw.title,
+                raw.source_type,
+            )
+            continue
+        try:
+            detail = extract_release_detail(raw, http)
+            if detail.published_on:
+                raw.published_on = detail.published_on
+                fingerprint = _release_fingerprint(raw)
+                if fingerprint in seen_fingerprints and not is_existing:
+                    logger.info(
+                        "Skip duplicate fingerprint %s | %s (%s)",
+                        raw.company,
+                        raw.title,
+                        raw.source_type,
+                    )
+                    continue
+            item = curator.curate(
+                raw,
+                detail.paragraph,
+                reference_url=detail.reference_url,
+            )
+        except Exception:
+            logger.exception("Failed to curate: %s", raw.url)
+            errors += 1
+            continue
+        if item is None:
+            continue
+        curated.append(item)
+        existing_urls.add(item.url)
+        seen_fingerprints.add(fingerprint)
+        logger.info("KEEP %s | %s", item.company, item.title)
+    return errors
 
 
 def run(seed_only: bool = False, reprocess_existing: bool = False) -> int:
@@ -40,14 +108,23 @@ def run(seed_only: bool = False, reprocess_existing: bool = False) -> int:
 
     locally_disabled = {company.name for company in yaml_companies if not company.enabled}
     yaml_by_name = {company.name: company for company in yaml_companies}
-    companies = []
+    companies: list[Company] = []
     for company in sheets.load_companies():
         if not company.enabled or company.name in locally_disabled:
             continue
         yaml_company = yaml_by_name.get(company.name)
-        if yaml_company and yaml_company.config:
-            # Repo YAML is the source of truth for extractor selectors/tuning.
-            company = company.model_copy(update={"config": yaml_company.config})
+        if yaml_company:
+            updates: dict = {}
+            if yaml_company.config:
+                # Repo YAML is the source of truth for extractor selectors/tuning.
+                updates["config"] = yaml_company.config
+            if yaml_company.stock_code and not company.stock_code:
+                updates["stock_code"] = yaml_company.stock_code
+            elif yaml_company.stock_code:
+                # Prefer repo stock codes when present.
+                updates["stock_code"] = yaml_company.stock_code
+            if updates:
+                company = company.model_copy(update=updates)
         companies.append(company)
     if not companies:
         # Fallback to local YAML if sheet unexpectedly empty after seed attempt
@@ -58,8 +135,9 @@ def run(seed_only: bool = False, reprocess_existing: bool = False) -> int:
     http = HttpClient(settings.user_agent, settings.request_timeout_seconds)
     curator = Curator(settings)
     cutoff = date.today() - timedelta(days=settings.lookback_days)
+    seen_fingerprints: set[str] = set()
 
-    curated = []
+    curated: list[CuratedRelease] = []
     errors = 0
     try:
         for company in companies:
@@ -73,30 +151,42 @@ def run(seed_only: bool = False, reprocess_existing: bool = False) -> int:
                 errors += 1
                 continue
 
-            for raw in raw_items:
-                is_existing = raw.url in existing_urls
-                if is_existing and not reprocess_existing:
-                    continue
-                if raw.published_on and raw.published_on < cutoff and not is_existing:
-                    continue
-                try:
-                    detail = extract_release_detail(raw, http)
-                    if detail.published_on:
-                        raw.published_on = detail.published_on
-                    item = curator.curate(
-                        raw,
-                        detail.paragraph,
-                        reference_url=detail.reference_url,
-                    )
-                except Exception:
-                    logger.exception("Failed to curate: %s", raw.url)
-                    errors += 1
-                    continue
-                if item is None:
-                    continue
-                curated.append(item)
-                existing_urls.add(item.url)
-                logger.info("KEEP %s | %s", item.company, item.title)
+            errors += _process_raw_items(
+                raw_items,
+                http=http,
+                curator=curator,
+                cutoff=cutoff,
+                existing_urls=existing_urls,
+                seen_fingerprints=seen_fingerprints,
+                reprocess_existing=reprocess_existing,
+                curated=curated,
+            )
+
+        logger.info(
+            "Crawling TDnet (lookback=%s days)", settings.tdnet_lookback_days
+        )
+        try:
+            tdnet_items = fetch_tdnet_releases(
+                companies,
+                http,
+                lookback_days=settings.tdnet_lookback_days,
+                max_items_per_company=settings.max_items_per_company,
+            )
+        except Exception:
+            logger.exception("Failed to fetch TDnet disclosures")
+            errors += 1
+            tdnet_items = []
+
+        errors += _process_raw_items(
+            tdnet_items,
+            http=http,
+            curator=curator,
+            cutoff=cutoff,
+            existing_urls=existing_urls,
+            seen_fingerprints=seen_fingerprints,
+            reprocess_existing=reprocess_existing,
+            curated=curated,
+        )
     finally:
         http.close()
 

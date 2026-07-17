@@ -37,11 +37,16 @@
 `companies` シート列:
 
 - `company_name`
+- `stock_code`（東証コード4桁。上場企業は TDnet 補助取得に使用）
 - `list_url`
 - `enabled` (`TRUE` / `FALSE`)
 - `source_type` (`html_css` / `rss` / `xlsx` / `playwright`)
 - `config_json`（抽出用設定の JSON）
 - `notes`
+
+各社サイト巡回に加え、`stock_code` がある企業は JPX 公式の適時開示情報閲覧サービス
+（`release.tdnet.info`）からも直近数日分を補助取得します（既定: `TDNET_LOOKBACK_DAYS=3`）。
+同一内容の重複は会社名・日付・表題の指紋で抑制します。
 
 `config/companies.yaml` で `enabled: false` の企業は、安全停止としてシート側が
 `TRUE` でも巡回しません。再開時は両方を `true` / `TRUE` に戻します。

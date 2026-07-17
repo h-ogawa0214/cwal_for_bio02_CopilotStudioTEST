@@ -18,6 +18,7 @@ class Settings:
     openai_api_key: str
     openai_model: str
     lookback_days: int
+    tdnet_lookback_days: int
     max_items_per_company: int
     request_timeout_seconds: float
     user_agent: str
@@ -50,6 +51,8 @@ def load_settings() -> Settings:
         openai_model=(os.getenv("OPENAI_MODEL") or "gpt-4o-mini").strip()
         or "gpt-4o-mini",
         lookback_days=int(os.getenv("LOOKBACK_DAYS", "14")),
+        # TDnet viewing service keeps ~31 days; keep crawl light for 3x/day runs.
+        tdnet_lookback_days=int(os.getenv("TDNET_LOOKBACK_DAYS", "3")),
         max_items_per_company=int(os.getenv("MAX_ITEMS_PER_COMPANY", "30")),
         request_timeout_seconds=float(os.getenv("REQUEST_TIMEOUT_SECONDS", "30")),
         user_agent=os.getenv(

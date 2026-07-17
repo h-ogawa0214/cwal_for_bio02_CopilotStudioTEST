@@ -1,9 +1,13 @@
 from __future__ import annotations
 
 import unittest
+from datetime import date
+from pathlib import Path
 
 from src.curator import _is_vague_title
 from src.detail import _select_substantive_paragraph
+from src.extractors.tdnet import normalize_tdnet_code, parse_tdnet_list_html
+from src.models import Company
 from src.textutil import first_paragraph, parse_date
 
 
@@ -56,6 +60,41 @@ class ExtractionRegressionTests(unittest.TestCase):
         paragraph = _select_substantive_paragraph(text)
         self.assertTrue(paragraph.startswith("Kura Oncology, Inc"))
         self.assertIn("発表しました", paragraph)
+
+    def test_normalize_tdnet_code(self) -> None:
+        self.assertEqual(normalize_tdnet_code("4503"), "45030")
+        self.assertEqual(normalize_tdnet_code("45030"), "45030")
+        self.assertEqual(normalize_tdnet_code("190A"), "190A0")
+
+    def test_parse_tdnet_list_filters_by_stock_code(self) -> None:
+        html = (
+            Path(__file__).parent / "fixtures" / "tdnet_list_sample.html"
+        ).read_text(encoding="utf-8")
+        code_map = {
+            "45030": Company(
+                name="アステラス製薬",
+                list_url="https://example.com",
+                source_type="html_css",
+                stock_code="4503",
+            ),
+            "41510": Company(
+                name="協和キリン",
+                list_url="https://example.com",
+                source_type="playwright",
+                stock_code="4151",
+            ),
+        }
+        items = parse_tdnet_list_html(
+            html,
+            published_on=date(2026, 7, 17),
+            code_map=code_map,
+        )
+        self.assertEqual(len(items), 2)
+        self.assertEqual(items[0].company, "アステラス製薬")
+        self.assertEqual(items[0].source_type, "tdnet")
+        self.assertTrue(items[0].url.endswith("140120260717000001.pdf"))
+        self.assertEqual(items[1].company, "協和キリン")
+        self.assertEqual(str(items[1].published_on), "2026-07-17")
 
 
 if __name__ == "__main__":

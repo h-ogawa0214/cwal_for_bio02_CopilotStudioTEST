@@ -18,6 +18,7 @@ SCOPES = [
 
 COMPANY_HEADERS = [
     "company_name",
+    "stock_code",
     "list_url",
     "enabled",
     "source_type",
@@ -94,6 +95,7 @@ class SheetsClient:
                     list_url=list_url,
                     enabled=enabled,
                     source_type=source_type,
+                    stock_code=str(row.get("stock_code") or "").strip(),
                     config=config,
                     notes=str(row.get("notes") or ""),
                 )
@@ -110,6 +112,7 @@ class SheetsClient:
             values.append(
                 [
                     company.name,
+                    company.stock_code,
                     company.list_url,
                     "TRUE" if company.enabled else "FALSE",
                     company.source_type,
