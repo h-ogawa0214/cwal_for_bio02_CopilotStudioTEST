@@ -43,6 +43,7 @@ HARD_DISCARD_TITLE_PATTERNS = [
     re.compile(r"よくあるご質問(?:と回答)?"),
     re.compile(r"説明会.*(?:質問|質疑)"),
     re.compile(r"(?:質問と回答|質疑応答|Q\s*&\s*A)", re.IGNORECASE),
+    re.compile(r"払込完了(?:に関する)?(?:お知らせ)?"),
 ]
 
 KEEP_KEYWORDS = [

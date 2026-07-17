@@ -58,6 +58,8 @@ class ExtractionRegressionTests(unittest.TestCase):
             "よくあるご質問と回答",
             "決算説明会における質問と回答",
             "2026年4月期通期決算説明会の質疑応答",
+            "払込完了に関するお知らせ",
+            "新株式及び新株予約権の発行に係る払込完了のお知らせ",
         ]
         for title in discarded:
             with self.subTest(title=title):
