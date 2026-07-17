@@ -54,7 +54,7 @@ class XlsxExtractor(Extractor):
         xlsx_url = cfg.get("xlsx_url")
         if not xlsx_url:
             raise ValueError(f"{company.name}: xlsx_url is required")
-        content = self.http.get_bytes(xlsx_url)
+        content = self.http.get_bytes(xlsx_url, referer=company.list_url)
         wb = load_workbook(BytesIO(content), data_only=True)
         ws = wb.active
         rows = list(ws.iter_rows(values_only=True))

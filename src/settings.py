@@ -54,7 +54,11 @@ def load_settings() -> Settings:
         request_timeout_seconds=float(os.getenv("REQUEST_TIMEOUT_SECONDS", "30")),
         user_agent=os.getenv(
             "USER_AGENT",
-            "PRDisclosureCurator/1.0 (+https://github.com/pr-disclosure-curator)",
+            (
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/124.0.0.0 Safari/537.36"
+            ),
         ),
         dry_run=os.getenv("DRY_RUN", "").lower() in {"1", "true", "yes"},
     )
