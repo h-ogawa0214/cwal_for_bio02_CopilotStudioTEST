@@ -203,6 +203,7 @@ class SheetsClient:
 
     def upsert_releases(self, releases: list[CuratedRelease]) -> int:
         if not releases:
+            self.sort_releases_by_date()
             return 0
         ws = self._book.worksheet(self.releases_sheet_name)
         values = ws.get_all_values()
@@ -238,7 +239,22 @@ class SheetsClient:
                 rows_to_append.append(row)
         if rows_to_append:
             ws.append_rows(rows_to_append, value_input_option="USER_ENTERED")
+        self.sort_releases_by_date()
         return len(releases)
+
+    def sort_releases_by_date(self) -> None:
+        """Keep the releases sheet newest-first while leaving the header in place."""
+        ws = self._book.worksheet(self.releases_sheet_name)
+        values = ws.get_all_values()
+        if len(values) <= 2:
+            return
+        headers = values[0]
+        published_on_column = headers.index("published_on") + 1
+        end_cell = gspread.utils.rowcol_to_a1(len(values), len(headers))
+        ws.sort(
+            (published_on_column, "des"),
+            range=f"A2:{end_cell}",
+        )
 
     # Compatibility for older callers.
     def append_releases(self, releases: list[CuratedRelease]) -> int:

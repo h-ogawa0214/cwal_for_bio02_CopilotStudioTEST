@@ -15,6 +15,8 @@
 | published_on | company_name | title | paragraph | url | fetched_at | decision_reason | original_title | reference_url |
 |---|---|---|---|---|---|---|---|---|
 
+書き込み後は `published_on` の降順に自動整列し、最新のリリースを上に表示します。
+
 `reference_url` は、公式URLから本文を取得できず別媒体を参照した場合だけ、その参照元URLを記録します。
 
 ## 対象企業
