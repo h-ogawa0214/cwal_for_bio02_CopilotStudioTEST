@@ -47,7 +47,8 @@ def load_settings() -> Settings:
         spreadsheet_id=spreadsheet_id,
         google_service_account_json=sa_json,
         openai_api_key=os.getenv("OPENAI_API_KEY", "").strip(),
-        openai_model=os.getenv("OPENAI_MODEL", "gpt-4o-mini").strip(),
+        openai_model=(os.getenv("OPENAI_MODEL") or "gpt-4o-mini").strip()
+        or "gpt-4o-mini",
         lookback_days=int(os.getenv("LOOKBACK_DAYS", "14")),
         max_items_per_company=int(os.getenv("MAX_ITEMS_PER_COMPANY", "30")),
         request_timeout_seconds=float(os.getenv("REQUEST_TIMEOUT_SECONDS", "30")),
