@@ -42,6 +42,21 @@ class ExtractionRegressionTests(unittest.TestCase):
         )
         self.assertFalse(_is_vague_title(title))
 
+    def test_kyowa_style_pdf_paragraph(self) -> None:
+        text = """
+        2026 年 6 月 12 日
+        新規診断AML におけるziftomenib／7+3 併用療法の長期追跡試験
+        に関する良好な臨床試験データを2026 年EHA 年次総会で口頭発表
+
+        – 単群試験である KOMET-007 試験において、NPM1 変異 AML 患者における
+        12 カ月時点の全生存率（OS）は 94％ –
+
+        Kura Oncology, Inc（本社：米国サンディエゴ、以下「Kura」）と協和キリン株式会社（本社：東京、以下「協和キリン」）は、本日、新規診断NPM1変異またはKMT2A再構成を有する急性骨髄性白血病（AML）患者を対象に、ziftomenibと強力化学療法（7+3）の併用療法を評価した第1/2相KOMET-007単群試験における長期追跡結果について、良好な成績が得られたことを発表しました。本データは、欧州血液学会（EHA）2026年次総会にて発表予定です。
+        """
+        paragraph = _select_substantive_paragraph(text)
+        self.assertTrue(paragraph.startswith("Kura Oncology, Inc"))
+        self.assertIn("発表しました", paragraph)
+
 
 if __name__ == "__main__":
     unittest.main()

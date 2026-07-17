@@ -38,7 +38,13 @@ def parse_date(value: object) -> Optional[date]:
 
 
 def normalize_whitespace(text: str) -> str:
-    return re.sub(r"\s+", " ", text or "").strip()
+    cleaned = re.sub(r"\s+", " ", text or "").strip()
+    # PDF line wrapping often inserts spaces between Japanese characters.
+    return re.sub(
+        r"(?<=[ぁ-んァ-ン一-龥々〆ヵヶー])\s+(?=[ぁ-んァ-ン一-龥々〆ヵヶー])",
+        "",
+        cleaned,
+    )
 
 
 def first_paragraph(text: str, limit: int = 2000) -> str:

@@ -35,8 +35,8 @@ companies:
     enabled: true
     source_type: playwright
     config:
-      wait_selector: "a[href*='news_releases'], a[href*='press'], a[href*='.pdf']"
-      link_selector: "a[href*='news_releases'], a[href*='.pdf']"
+      wait_selector: "a[href*='/pressroom/news_releases/'][href$='.pdf']"
+      link_selector: "a[href*='/pressroom/news_releases/'][href$='.pdf']"
       min_title_length: 12
       same_host_only: true
 

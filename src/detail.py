@@ -111,41 +111,93 @@ def _extract_html_date(soup: BeautifulSoup) -> date | None:
 
 
 def _select_substantive_paragraph(text: str) -> str:
-    blocks = [
-        normalize_whitespace(block)
-        for block in re.split(r"(?:\r?\n\s*){2,}", text)
-        if normalize_whitespace(block)
-    ]
+    blocks = _paragraphs_from_pdf(text)
+    if len(blocks) <= 1:
+        blocks = [
+            normalize_whitespace(block)
+            for block in re.split(r"(?:\r?\n\s*){2,}", text)
+            if normalize_whitespace(block)
+        ]
     return _select_substantive_paragraphs(blocks)
+
+
+def _paragraphs_from_pdf(text: str) -> list[str]:
+    """Join soft-wrapped PDF lines while keeping bullets/headers separate."""
+    paragraphs: list[str] = []
+    buf: list[str] = []
+
+    def flush() -> None:
+        if buf:
+            paragraphs.append(normalize_whitespace(" ".join(buf)))
+            buf.clear()
+
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line:
+            flush()
+            continue
+        starts_new = bool(
+            re.match(r"^[–—\-‐－※]", line)
+            or re.match(r"^20\d{2}\s*年", line)
+            or line.startswith(("表", "記", "以上", "注意", "本ニュース", "このニュース"))
+        )
+        if starts_new:
+            flush()
+        buf.append(line)
+    flush()
+    return paragraphs
 
 
 def _select_substantive_paragraphs(paragraphs: list[str]) -> str:
     for paragraph in paragraphs:
         if _is_substantive_paragraph(paragraph):
             return first_paragraph(paragraph)
-    return ""
+
+    # Fallback: longest body-like block that is clearly not a headline/bullet.
+    candidates = [
+        paragraph
+        for paragraph in paragraphs
+        if len(paragraph) >= 100
+        and not _is_bullet_or_boilerplate(paragraph)
+        and any(
+            marker in paragraph
+            for marker in ("発表", "お知らせ", "締結", "承認", "申請", "開始")
+        )
+    ]
+    if not candidates:
+        return ""
+    return first_paragraph(max(candidates, key=len))
 
 
-def _is_substantive_paragraph(text: str) -> bool:
-    if len(text) < 80:
-        return False
-    if text.startswith(("-", "‐", "－", "※", "注：", "注意事項")):
-        return False
+def _is_bullet_or_boilerplate(text: str) -> bool:
+    if text.startswith(("-", "‐", "－", "–", "—", "※", "注：", "注意事項", "表")):
+        return True
     boilerplate = (
         "本ニュースリリース",
         "このニュースリリース",
         "将来の見通し",
         "報道関係者",
         "お問い合わせ",
+        "正式言語は英語",
     )
-    if any(text.startswith(prefix) for prefix in boilerplate):
+    return any(text.startswith(prefix) for prefix in boilerplate)
+
+
+def _is_substantive_paragraph(text: str) -> bool:
+    if len(text) < 80:
+        return False
+    if _is_bullet_or_boilerplate(text):
         return False
     company_intro = (
         "Inc.（本社",
+        "Inc（本社",
+        "Co., Ltd",
         "大学",
         "研究所",
         "共同で",
         "締結した",
+        "は、本日",
+        "は本日",
     )
     return bool(re.search(r"株式会社\s*[（(]本社", text)) or any(
         marker in text for marker in company_intro

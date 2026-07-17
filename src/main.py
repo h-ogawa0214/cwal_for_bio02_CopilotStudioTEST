@@ -39,11 +39,16 @@ def run(seed_only: bool = False, reprocess_existing: bool = False) -> int:
         return 0
 
     locally_disabled = {company.name for company in yaml_companies if not company.enabled}
-    companies = [
-        company
-        for company in sheets.load_companies()
-        if company.enabled and company.name not in locally_disabled
-    ]
+    yaml_by_name = {company.name: company for company in yaml_companies}
+    companies = []
+    for company in sheets.load_companies():
+        if not company.enabled or company.name in locally_disabled:
+            continue
+        yaml_company = yaml_by_name.get(company.name)
+        if yaml_company and yaml_company.config:
+            # Repo YAML is the source of truth for extractor selectors/tuning.
+            company = company.model_copy(update={"config": yaml_company.config})
+        companies.append(company)
     if not companies:
         # Fallback to local YAML if sheet unexpectedly empty after seed attempt
         companies = [c for c in yaml_companies if c.enabled]

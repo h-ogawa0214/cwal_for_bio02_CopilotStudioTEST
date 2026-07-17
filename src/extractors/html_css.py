@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from urllib.parse import urljoin, urlparse
 
 from bs4 import BeautifulSoup
@@ -100,6 +101,8 @@ class PlaywrightExtractor(Extractor):
                 continue
             if title.startswith("もっと詳しく"):
                 continue
+            # Drop trailing file-size labels copied from list pages.
+            title = re.sub(r"\s*\(\d+(?:\.\d+)?\s*KB\)\s*$", "", title, flags=re.I)
             url = urljoin(company.list_url, href)
             parsed = urlparse(url)
             if parsed.scheme not in {"http", "https"}:
