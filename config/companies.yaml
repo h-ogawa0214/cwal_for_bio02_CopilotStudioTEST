@@ -49,13 +49,15 @@ companies:
 
   - name: 明治製菓ファルマ
     list_url: https://www.meiji-seika-pharma.co.jp/pressrelease/
-    enabled: true
+    # GitHub Actions IP から xlsx が 403 のため当面スキップ
+    enabled: false
     source_type: xlsx
     config:
       xlsx_url: https://www.meiji-seika-pharma.co.jp/pressrelease/xlsx/pressrelease.xlsx
       title_column: title
       date_column: date
       url_column: url
+    notes: "Actions IP blocked (403). Re-enable when alternate source or proxy is ready."
 
   - name: 杏林製薬
     list_url: https://www.kyorin-pharm.co.jp/news/
