@@ -12,11 +12,37 @@ from ..textutil import normalize_whitespace, parse_date
 from .base import Extractor
 
 
+def discover_feed_url(html: str, base_url: str) -> str:
+    """Return the first RSS/Atom alternate link found in HTML, if any."""
+    from urllib.parse import urljoin
+
+    from bs4 import BeautifulSoup
+
+    soup = BeautifulSoup(html, "lxml")
+    for link in soup.select('link[type*="rss"], link[type*="atom"], link[rel="alternate"]'):
+        link_type = (link.get("type") or "").lower()
+        href = (link.get("href") or "").strip()
+        if not href:
+            continue
+        if "rss" in link_type or "atom" in link_type or href.endswith((".xml", "/feed", "/rss")):
+            return urljoin(base_url, href)
+    return ""
+
+
 class RssExtractor(Extractor):
     source_type = "rss"
 
     def fetch(self, company: Company, limit: int) -> list[RawRelease]:
         feed_url = company.config.get("feed_url") or company.list_url
+        if company.config.get("auto_discover_feed"):
+            try:
+                discovered = discover_feed_url(
+                    self.http.get_text(company.list_url), company.list_url
+                )
+                if discovered:
+                    feed_url = discovered
+            except Exception:
+                pass
         parsed = feedparser.parse(self.http.get_text(feed_url))
         results: list[RawRelease] = []
         for entry in parsed.entries[:limit]:

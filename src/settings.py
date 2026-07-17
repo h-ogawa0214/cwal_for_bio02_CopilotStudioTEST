@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 from dataclasses import dataclass
@@ -24,7 +25,21 @@ class Settings:
     user_agent: str
     companies_sheet: str = "companies"
     releases_sheet: str = "releases"
+    decisions_sheet: str = "decisions"
+    metrics_sheet: str = "metrics"
     dry_run: bool = False
+    shadow_default: bool = False
+    criteria_version: str = "eco-v1"
+
+
+def _criteria_version() -> str:
+    parts: list[bytes] = []
+    for relative in ("config/criteria.md", "config/editorial_examples.json"):
+        path = ROOT / relative
+        if path.exists():
+            parts.append(path.read_bytes())
+    digest = hashlib.sha256(b"|".join(parts)).hexdigest()[:12]
+    return f"eco-{digest}"
 
 
 def load_settings() -> Settings:
@@ -34,7 +49,6 @@ def load_settings() -> Settings:
     if not sa_json and sa_file:
         sa_json = Path(sa_file).read_text(encoding="utf-8")
     if sa_json and not sa_json.startswith("{"):
-        # Allow base64-ish mistakes to fail loudly later; prefer file path if given as plain path
         maybe_path = Path(sa_json)
         if maybe_path.exists():
             sa_json = maybe_path.read_text(encoding="utf-8")
@@ -51,7 +65,6 @@ def load_settings() -> Settings:
         openai_model=(os.getenv("OPENAI_MODEL") or "gpt-4o-mini").strip()
         or "gpt-4o-mini",
         lookback_days=int(os.getenv("LOOKBACK_DAYS", "14")),
-        # TDnet viewing service keeps ~31 days; keep crawl light for 3x/day runs.
         tdnet_lookback_days=int(os.getenv("TDNET_LOOKBACK_DAYS", "3")),
         max_items_per_company=int(os.getenv("MAX_ITEMS_PER_COMPANY", "30")),
         request_timeout_seconds=float(os.getenv("REQUEST_TIMEOUT_SECONDS", "30")),
@@ -64,6 +77,8 @@ def load_settings() -> Settings:
             ),
         ),
         dry_run=os.getenv("DRY_RUN", "").lower() in {"1", "true", "yes"},
+        shadow_default=os.getenv("SHADOW_DEFAULT", "").lower() in {"1", "true", "yes"},
+        criteria_version=_criteria_version(),
     )
 
 

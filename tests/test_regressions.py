@@ -145,9 +145,16 @@ class ExtractionRegressionTests(unittest.TestCase):
         self.assertIn("二つ目の段落", detail.source_text)
 
     def test_curator_uses_editorial_title_and_lead(self) -> None:
+        from src.metrics import RunMetrics
+
         curator = Curator.__new__(Curator)
         curator.client = object()
-        curator._llm_decide = MagicMock(
+        curator.settings = MagicMock(openai_model="gpt-4o-mini", criteria_version="test")
+        curator.metrics = RunMetrics()
+        curator._llm_classify = MagicMock(
+            return_value={"verdict": "keep", "reason": "pipeline fit"}
+        )
+        curator._llm_edit = MagicMock(
             return_value={
                 "keep": True,
                 "reason": "editorial fit",
@@ -169,6 +176,21 @@ class ExtractionRegressionTests(unittest.TestCase):
         assert item is not None
         self.assertEqual(item.title, "親会社、子会社が治験を開始")
         self.assertIn("対象患者", item.paragraph)
+        # Heuristic keep skips classify and goes straight to editorial.
+        curator._llm_classify.assert_not_called()
+        curator._llm_edit.assert_called_once()
+
+    def test_select_examples_limits_prompt_size(self) -> None:
+        from src.curator import _select_examples
+
+        examples = _load_editorial_examples()
+        selected = _select_examples(
+            examples,
+            "代表取締役社長の異動に関するお知らせ",
+            "経営体制を刷新します。",
+        )
+        self.assertLessEqual(len(selected), 4)
+        self.assertGreaterEqual(len(selected), 1)
 
 
 if __name__ == "__main__":

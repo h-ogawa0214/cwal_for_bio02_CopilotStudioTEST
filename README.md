@@ -7,53 +7,55 @@
 - 対象企業一覧をスプレッドシートの `companies` シートで管理（社数増加を想定）
 - 1日3回（JST 9:00 / 12:00 / 17:00）GitHub Actions で巡回
 - 掲載価値のあるリリースだけを `releases` シートへ追記
-- 具体的な原題はそのまま保持し、粗いタイトルだけ本文1段落から40字前後に補正
-- 一覧の抜粋ではなく、詳細ページ／PDF本文の最初の実質的な段落を取得
+- 除外・掲載の判定履歴を `decisions` に保存し、同日の再 LLM を抑制
+- run ごとのトークン・概算費用・ソース別件数を `metrics` に記録
+- 具体的な原題はそのまま保持し、粗いタイトルだけ本文から補正
+- 一覧の抜粋ではなく、詳細ページ／PDF本文の上位段落を取得
 
-書き込み列:
+書き込み列 (`releases`):
 
 | published_on | company_name | title | paragraph | url | fetched_at | decision_reason | original_title | reference_url |
 |---|---|---|---|---|---|---|---|---|
 
 書き込み後は `published_on` の降順に自動整列し、最新のリリースを上に表示します。
 
-`reference_url` は、公式URLから本文を取得できず別媒体を参照した場合だけ、その参照元URLを記録します。
-
 ## 対象企業
 
-`config/companies.yaml` に定義。初回実行時、スプレッドシートの `companies` が空なら自動でシードします。
-以後の追加分は起動時にシートへマージ（未登録社の追記・空の証券コード補完）します。
+`config/companies.yaml` が `list_url` / `source_type` / 抽出設定の正本です。  
+Google Sheets は `enabled` と `crawl_mode`（live / shadow）など運用上書きに使います。
 
-大手などは各社サイト抽出（`html_css` / `rss` / `xlsx` / `playwright`）を使い、
+起動時に YAML → Sheets へ同期します（未登録社の追記、`list_url` / `source_type` / `config_json` / `stock_code` の更新）。
+
+大手などは各社サイト抽出（`html_css` / `rss` / `xlsx` / `json_api` / `sitemap` / `eir` / `playwright`）を使い、
 それ以外の上場企業は当面 `tdnet_only`（公式 TDnet 閲覧サービスのみ）でカバーします。
+
+第1陣の公式ソースは `crawl_mode: shadow` で先行運用します（取得・判定はするが `releases` には書かない）。  
+詳細は `config/cohort_one.md` / `config/cohort_rollout.md` を参照。
 
 `companies` シート列:
 
 - `company_name`
-- `stock_code`（東証コード4桁。上場企業は TDnet 補助取得に使用）
+- `stock_code`（東証コード。TDnet 補助取得に使用）
 - `list_url`
 - `enabled` (`TRUE` / `FALSE`)
-- `source_type` (`html_css` / `rss` / `xlsx` / `playwright` / `tdnet_only`)
-- `config_json`（抽出用設定の JSON）
+- `source_type`
+- `crawl_mode` (`live` / `shadow`)
+- `config_json`
 - `notes`
 
 各社サイト巡回に加え、`stock_code` がある企業は JPX 公式の適時開示情報閲覧サービス
-（`release.tdnet.info`）からも直近数日分を補助取得します（既定: `TDNET_LOOKBACK_DAYS=3`）。
-同一内容の重複は URL 一致に加え、会社名・日付・表題の指紋でも抑制します
-（9時と12時の別ランで別URLとして拾っても再追加しません）。
+（`release.tdnet.info`）からも直近数日分を補助取得します。  
+同一内容の重複は URL 正規化に加え、会社名・日付・表題の指紋、本文ハッシュでも抑制します。
 
-`config/companies.yaml` で `enabled: false` の企業は、安全停止としてシート側が
-`TRUE` でも巡回しません。再開時は両方を `true` / `TRUE` に戻します。
+## 選出ロジック（API節約）
 
-## 選出ロジック
+1. ハード除外タイトル（助成金受領・IR Q&A・払込完了など）
+2. タイトルキーワードの安価なヒューリスティック除外
+3. 軽量 LLM 一次判定（keep / discard / uncertain）
+4. keep / uncertain（およびヒューリスティック keep）だけ媒体向けタイトル・リード編集 LLM
+5. few-shot 例は全件ではなく記事種別に近い 2〜4 例だけ送る
 
-1. キーワードによる一次判定（人事・受賞・採用などは除外、承認・治験・提携などは残す）
-2. OpenAI API で最終判定＋掲載タイトル・リード選定
-   - `config/criteria.md` の編集基準を使用
-   - `config/editorial_examples.json` の実際の掲載例を few-shot のお手本として使用
-   - 発表主体の補完・縮約、親会社名の追加、媒体外の共同主体の省略などを反映
-
-`OPENAI_API_KEY` が無い場合はヒューリスティックのみで動きます（判定不能なものはスキップ）。
+`OPENAI_API_KEY` が無い場合はヒューリスティックのみで動きます。
 
 ## セットアップ
 
@@ -67,8 +69,6 @@
 5. Secret `OPENAI_API_KEY` を登録（推奨）
 6. 任意で Secret / Variable `OPENAI_MODEL`（既定: `gpt-4o-mini`）
 
-> 「リンクを知っている全員が編集可」でも、Sheets API 経由の書き込みにはサービスアカウント（または OAuth）が必要です。
-
 ### 2. ローカル実行
 
 ```bash
@@ -78,10 +78,13 @@ pip install -r requirements.txt
 python -m playwright install chromium
 cp .env.example .env   # 値を埋める
 
-python -m src.main --seed-only   # companies / releases シート作成＋企業シード
+python -m src.main --seed-only   # companies / releases / decisions / metrics シート作成＋企業シード
 python -m src.main               # 巡回・選出・書き込み
-python -m src.main --reprocess-existing  # 既存URLを再抽出して行を更新
+python -m src.main --company エーザイ --since 2026-07-01
+python -m src.main --reprocess-existing --company エーザイ --since 2026-07-01
 ```
+
+`--reprocess-existing` は課金防止のため `--company` または `--since` / `--until` が必須です。
 
 ### 3. GitHub Actions
 
@@ -90,9 +93,9 @@ Actions タブから `workflow_dispatch` でも手動実行できます。
 
 ## 企業の追加方法
 
-1. スプレッドシート `companies` に1行追加
-2. `source_type` と `config_json` を設定
-3. 次回の Actions 実行から自動で巡回対象になる
+1. **まず** `config/companies.yaml` に追加（正本）
+2. 必要なら Sheets で `enabled` / `crawl_mode` だけ上書き
+3. 次回実行で同期・巡回される
 
 例（静的 HTML）:
 
@@ -111,21 +114,22 @@ Actions タブから `workflow_dispatch` でも手動実行できます。
 {"feed_url": "https://example.com/news/rss.xml"}
 ```
 
-公式URLが取得できない個別記事に代替ソースを指定する例:
+例（JSON API）:
 
 ```json
 {
-  "alternate_urls": {
-    "https://example.com/original-release.pdf": "https://prtimes.jp/example"
-  }
+  "json_url": "https://example.com/data/ann/1.json",
+  "items_path": "item",
+  "html_field": "contents",
+  "html_link_selector": "a",
+  "date_field": "anndate",
+  "base_url": "https://example.com"
 }
 ```
 
-この場合も `url` は公式URLのまま維持し、実際に代替ソースを使ったときだけ
-`reference_url` に代替ソースのURLを書き込みます。
-
 ## 注意
 
-- JS 描画の IR サイトは Playwright を使います。レイアウト変更で抽出が崩れたら `config_json` を更新してください
+- JS 描画の IR サイトは `eir` / `playwright` を使います。レイアウト変更で抽出が崩れたら YAML を更新してください
+- 公式ソースが壊れたらその社だけ `tdnet_only` / `enabled: false` に戻し、TDnet は継続します
 - PDF 本文は先頭ページから段落抽出します（画像PDFは空になることがあります）
-- 同一 URL は通常スキップします。手動実行の `reprocess_existing` では既存行を更新します
+- 同一 URL / 指紋は通常スキップします。再処理は対象を絞って実行してください

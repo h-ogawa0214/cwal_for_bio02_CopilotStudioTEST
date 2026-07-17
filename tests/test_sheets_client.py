@@ -5,7 +5,7 @@ from datetime import date
 from unittest.mock import MagicMock
 
 from src.dedupe import release_fingerprint
-from src.sheets_client import RELEASE_HEADERS, SheetsClient
+from src.sheets_client import COMPANY_HEADERS, RELEASE_HEADERS, SheetsClient
 
 
 class SheetsClientTests(unittest.TestCase):
@@ -58,6 +58,9 @@ class SheetsClientTests(unittest.TestCase):
         left = release_fingerprint("協和キリン", date(2026, 6, 12), "新規診断 AML")
         right = release_fingerprint("協和キリン", "2026-06-12", "新規診断AML")
         self.assertEqual(left, right)
+
+    def test_company_headers_include_crawl_mode(self) -> None:
+        self.assertIn("crawl_mode", COMPANY_HEADERS)
 
 
 if __name__ == "__main__":

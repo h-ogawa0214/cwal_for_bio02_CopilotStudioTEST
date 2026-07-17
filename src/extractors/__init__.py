@@ -3,9 +3,11 @@ from __future__ import annotations
 from ..http_client import HttpClient
 from ..models import Company, RawRelease
 from .base import Extractor
+from .eir import EirExtractor
 from .feeds import RssExtractor, XlsxExtractor
 from .html_css import HtmlCssExtractor, PlaywrightExtractor
 from .noop import TdnetOnlyExtractor
+from .structured import JsonApiExtractor, SitemapExtractor
 from .tdnet import TdnetExtractor, fetch_tdnet_releases
 
 __all__ = [
@@ -26,6 +28,9 @@ def get_extractor(source_type: str, http: HttpClient) -> Extractor:
         XlsxExtractor.source_type: XlsxExtractor,
         TdnetExtractor.source_type: TdnetExtractor,
         TdnetOnlyExtractor.source_type: TdnetOnlyExtractor,
+        JsonApiExtractor.source_type: JsonApiExtractor,
+        SitemapExtractor.source_type: SitemapExtractor,
+        EirExtractor.source_type: EirExtractor,
     }
     cls = mapping.get(source_type)
     if not cls:

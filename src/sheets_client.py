@@ -1,14 +1,15 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import Iterable
 
 import gspread
 from google.oauth2.service_account import Credentials
 
-from .dedupe import release_fingerprint
-from .models import Company, CuratedRelease
+from .dedupe import canonicalize_url, release_fingerprint
+from .metrics import RunMetrics
+from .models import Company, CuratedRelease, DecisionRecord
 from .settings import Settings, validate_service_account_json
 
 
@@ -23,6 +24,7 @@ COMPANY_HEADERS = [
     "list_url",
     "enabled",
     "source_type",
+    "crawl_mode",
     "config_json",
     "notes",
 ]
@@ -39,6 +41,44 @@ RELEASE_HEADERS = [
     "reference_url",
 ]
 
+DECISION_HEADERS = [
+    "decided_at",
+    "company_name",
+    "published_on",
+    "title",
+    "url",
+    "canonical_url",
+    "fingerprint",
+    "content_hash",
+    "decision",
+    "reason",
+    "source_type",
+    "model",
+    "criteria_version",
+]
+
+METRICS_HEADERS = [
+    "run_at",
+    "candidates_seen",
+    "candidates_new",
+    "cache_hits",
+    "kept",
+    "discarded",
+    "hard_discards",
+    "heuristic_discards",
+    "duplicates_skipped",
+    "fetch_errors",
+    "classify_calls",
+    "editorial_calls",
+    "prompt_tokens",
+    "completion_tokens",
+    "est_cost_usd",
+    "site_only",
+    "tdnet_only",
+    "matched_site_tdnet",
+    "source_stats_json",
+]
+
 
 class SheetsClient:
     def __init__(self, settings: Settings) -> None:
@@ -48,10 +88,14 @@ class SheetsClient:
         self._book = self._gc.open_by_key(settings.spreadsheet_id)
         self.companies_sheet_name = settings.companies_sheet
         self.releases_sheet_name = settings.releases_sheet
+        self.decisions_sheet_name = settings.decisions_sheet
+        self.metrics_sheet_name = settings.metrics_sheet
 
     def ensure_schema(self) -> None:
         self._ensure_worksheet(self.companies_sheet_name, COMPANY_HEADERS)
         self._ensure_worksheet(self.releases_sheet_name, RELEASE_HEADERS)
+        self._ensure_worksheet(self.decisions_sheet_name, DECISION_HEADERS)
+        self._ensure_worksheet(self.metrics_sheet_name, METRICS_HEADERS)
 
     def _ensure_worksheet(self, title: str, headers: list[str]) -> gspread.Worksheet:
         try:
@@ -90,6 +134,8 @@ class SheetsClient:
             enabled = enabled_raw in {"1", "true", "yes", "y", "有効"}
             config_raw = str(row.get("config_json") or "").strip()
             config = json.loads(config_raw) if config_raw else {}
+            crawl_mode_raw = str(row.get("crawl_mode") or "live").strip().lower()
+            crawl_mode = "shadow" if crawl_mode_raw == "shadow" else "live"
             companies.append(
                 Company(
                     name=name,
@@ -97,6 +143,7 @@ class SheetsClient:
                     enabled=enabled,
                     source_type=source_type,
                     stock_code=str(row.get("stock_code") or "").strip(),
+                    crawl_mode=crawl_mode,
                     config=config,
                     notes=str(row.get("notes") or ""),
                 )
@@ -116,7 +163,11 @@ class SheetsClient:
         return len(values) - 1
 
     def sync_companies(self, companies: Iterable[Company]) -> dict[str, int]:
-        """Append missing companies and fill blank stock_code on existing rows."""
+        """Sync YAML authority fields and append missing companies.
+
+        YAML owns: list_url, source_type, config_json, stock_code, crawl_mode default.
+        Sheets may override: enabled, crawl_mode (if non-empty), notes.
+        """
         self.ensure_schema()
         ws = self._book.worksheet(self.companies_sheet_name)
         values = ws.get_all_values()
@@ -129,10 +180,8 @@ class SheetsClient:
             values = [COMPANY_HEADERS]
 
         headers = values[0]
-        # Ensure expected headers exist (ensure_schema may have appended at end).
         header_index = {name: idx for idx, name in enumerate(headers)}
         name_idx = header_index.get("company_name", 0)
-        stock_idx = header_index.get("stock_code")
 
         existing_names = {
             row[name_idx].strip()
@@ -140,8 +189,16 @@ class SheetsClient:
             if len(row) > name_idx and row[name_idx].strip()
         }
         appended = 0
-        updated_codes = 0
+        updated_fields = 0
         rows_to_append: list[list[str]] = []
+
+        authority_fields = {
+            "list_url": lambda c: c.list_url,
+            "source_type": lambda c: c.source_type,
+            "stock_code": lambda c: c.stock_code,
+            "config_json": lambda c: json.dumps(c.config, ensure_ascii=False),
+            "crawl_mode": lambda c: c.crawl_mode,
+        }
 
         for company in companies:
             if company.name not in existing_names:
@@ -149,25 +206,33 @@ class SheetsClient:
                 existing_names.add(company.name)
                 appended += 1
                 continue
-            if not company.stock_code or stock_idx is None:
-                continue
+
             for row_number, row in enumerate(values[1:], start=2):
                 if len(row) <= name_idx or row[name_idx].strip() != company.name:
                     continue
-                current = row[stock_idx].strip() if len(row) > stock_idx else ""
-                if current:
-                    break
-                cell = gspread.utils.rowcol_to_a1(row_number, stock_idx + 1)
-                ws.update(
-                    range_name=cell,
-                    values=[[company.stock_code]],
-                    value_input_option="USER_ENTERED",
-                )
-                updated_codes += 1
+                for field, getter in authority_fields.items():
+                    col_idx = header_index.get(field)
+                    if col_idx is None:
+                        continue
+                    desired = getter(company)
+                    if field == "stock_code" and not desired:
+                        continue
+                    current = row[col_idx].strip() if len(row) > col_idx else ""
+                    # Keep an explicit sheet crawl_mode once set.
+                    if field == "crawl_mode" and current:
+                        continue
+                    if current == desired:
+                        continue
+                    cell = gspread.utils.rowcol_to_a1(row_number, col_idx + 1)
+                    ws.update(
+                        range_name=cell,
+                        values=[[desired]],
+                        value_input_option="USER_ENTERED",
+                    )
+                    updated_fields += 1
                 break
 
         if rows_to_append:
-            # Pad rows to current sheet width if headers were extended in place.
             width = len(headers)
             padded = []
             for row in rows_to_append:
@@ -178,7 +243,7 @@ class SheetsClient:
                 padded.append(mapped)
             ws.append_rows(padded, value_input_option="USER_ENTERED")
 
-        return {"appended": appended, "updated_codes": updated_codes}
+        return {"appended": appended, "updated_fields": updated_fields}
 
     @staticmethod
     def _company_row(company: Company) -> list[str]:
@@ -188,6 +253,7 @@ class SheetsClient:
             company.list_url,
             "TRUE" if company.enabled else "FALSE",
             company.source_type,
+            company.crawl_mode,
             json.dumps(company.config, ensure_ascii=False),
             company.notes,
         ]
@@ -206,6 +272,9 @@ class SheetsClient:
             url = str(row.get("url") or "").strip()
             if url:
                 urls.add(url)
+                canonical = canonicalize_url(url)
+                if canonical:
+                    urls.add(canonical)
             company = str(row.get("company_name") or "").strip()
             published_on = str(row.get("published_on") or "").strip()
             title = str(row.get("original_title") or row.get("title") or "").strip()
@@ -217,6 +286,100 @@ class SheetsClient:
                         release_fingerprint(company, published_on, display_title)
                     )
         return urls, fingerprints
+
+    def load_decision_cache(self, *, today: date | None = None) -> dict[str, DecisionRecord]:
+        """Map fingerprint/canonical_url -> latest decision for same-day discard cache."""
+        ws = self._book.worksheet(self.decisions_sheet_name)
+        records = ws.get_all_records()
+        cache: dict[str, DecisionRecord] = {}
+        day = today or date.today()
+        for row in records:
+            decision = str(row.get("decision") or "").strip().lower()
+            if decision not in {"keep", "discard", "hard_discard"}:
+                continue
+            decided_raw = str(row.get("decided_at") or "").strip()
+            try:
+                decided_at = datetime.fromisoformat(decided_raw.replace("Z", "+00:00"))
+            except ValueError:
+                continue
+            decided_day = decided_at.astimezone(timezone.utc).date()
+            # Same-day discard cache prevents re-LLM across 9/12/17 runs.
+            if decision in {"discard", "hard_discard"} and decided_day != day:
+                continue
+            record = DecisionRecord(
+                decided_at=decided_at,
+                company=str(row.get("company_name") or "").strip(),
+                published_on=str(row.get("published_on") or "").strip(),
+                title=str(row.get("title") or "").strip(),
+                url=str(row.get("url") or "").strip(),
+                canonical_url=str(row.get("canonical_url") or "").strip(),
+                fingerprint=str(row.get("fingerprint") or "").strip(),
+                content_hash=str(row.get("content_hash") or "").strip(),
+                decision=decision,
+                reason=str(row.get("reason") or "").strip(),
+                source_type=str(row.get("source_type") or "").strip(),
+                model=str(row.get("model") or "").strip(),
+                criteria_version=str(row.get("criteria_version") or "").strip(),
+            )
+            for key in (
+                record.fingerprint,
+                record.canonical_url,
+                record.url,
+                record.content_hash,
+            ):
+                if key:
+                    cache[key] = record
+        return cache
+
+    def append_decisions(self, decisions: list[DecisionRecord]) -> int:
+        if not decisions:
+            return 0
+        ws = self._book.worksheet(self.decisions_sheet_name)
+        rows = [
+            [
+                item.decided_at.replace(tzinfo=timezone.utc).isoformat(),
+                item.company,
+                item.published_on,
+                item.title,
+                item.url,
+                item.canonical_url,
+                item.fingerprint,
+                item.content_hash,
+                item.decision,
+                item.reason,
+                item.source_type,
+                item.model,
+                item.criteria_version,
+            ]
+            for item in decisions
+        ]
+        ws.append_rows(rows, value_input_option="USER_ENTERED")
+        return len(rows)
+
+    def append_run_metrics(self, metrics: RunMetrics) -> None:
+        ws = self._book.worksheet(self.metrics_sheet_name)
+        row = [
+            metrics.started_at.replace(tzinfo=timezone.utc).isoformat(),
+            metrics.candidates_seen,
+            metrics.candidates_new,
+            metrics.cache_hits,
+            metrics.kept,
+            metrics.discarded,
+            metrics.hard_discards,
+            metrics.heuristic_discards,
+            metrics.duplicates_skipped,
+            metrics.fetch_errors,
+            metrics.classify_calls,
+            metrics.editorial_calls,
+            metrics.prompt_tokens,
+            metrics.completion_tokens,
+            f"{metrics.estimated_cost_usd:.6f}",
+            metrics.site_only,
+            metrics.tdnet_only,
+            metrics.matched_site_tdnet,
+            json.dumps(metrics.source_stats, ensure_ascii=False),
+        ]
+        ws.append_row(row, value_input_option="USER_ENTERED")
 
     def upsert_releases(self, releases: list[CuratedRelease]) -> int:
         if not releases:
@@ -262,12 +425,11 @@ class SheetsClient:
                 existing_fingerprints.add(fingerprint)
                 written += 1
             elif fingerprint in existing_fingerprints:
-                # Same disclosure already stored under another URL (e.g. prior crawl).
                 continue
             else:
                 rows_to_append.append(row)
                 existing_fingerprints.add(fingerprint)
-                existing_rows[item.url] = -1  # prevent same-batch URL dupes
+                existing_rows[item.url] = -1
                 written += 1
         if rows_to_append:
             ws.append_rows(rows_to_append, value_input_option="USER_ENTERED")
@@ -288,6 +450,5 @@ class SheetsClient:
             range=f"A2:{end_cell}",
         )
 
-    # Compatibility for older callers.
     def append_releases(self, releases: list[CuratedRelease]) -> int:
         return self.upsert_releases(releases)

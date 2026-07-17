@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 from datetime import date, datetime
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
+
+
+CrawlMode = Literal["live", "shadow"]
 
 
 class Company(BaseModel):
@@ -12,6 +15,7 @@ class Company(BaseModel):
     enabled: bool = True
     source_type: str
     stock_code: str = ""
+    crawl_mode: CrawlMode = "live"
     config: dict[str, Any] = Field(default_factory=dict)
     notes: str = ""
 
@@ -37,3 +41,21 @@ class CuratedRelease(BaseModel):
     original_title: str = ""
     reference_url: str = ""
     fetched_at: datetime = Field(default_factory=datetime.utcnow)
+    source_type: str = ""
+    crawl_mode: CrawlMode = "live"
+
+
+class DecisionRecord(BaseModel):
+    decided_at: datetime
+    company: str
+    published_on: str = ""
+    title: str
+    url: str
+    canonical_url: str = ""
+    fingerprint: str = ""
+    content_hash: str = ""
+    decision: str
+    reason: str = ""
+    source_type: str = ""
+    model: str = ""
+    criteria_version: str = ""

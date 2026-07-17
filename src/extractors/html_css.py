@@ -20,16 +20,23 @@ class HtmlCssExtractor(Extractor):
         items = soup.select(cfg.get("item_selector", "li"))
         results: list[RawRelease] = []
         seen: set[str] = set()
+        same_host_only = bool(cfg.get("same_host_only", False))
+        host = urlparse(company.list_url).netloc
 
         for item in items:
             title_el = item.select_one(cfg.get("title_selector", "a"))
             link_el = item.select_one(cfg.get("link_selector", "a"))
+            if item.name == "a" and item.get("href"):
+                title_el = title_el or item
+                link_el = link_el or item
             if not title_el or not link_el or not link_el.get("href"):
                 continue
             title = normalize_whitespace(title_el.get_text(" ", strip=True))
             if len(title) < int(cfg.get("min_title_length", 8)):
                 continue
             url = urljoin(company.list_url, link_el["href"])
+            if same_host_only and urlparse(url).netloc and urlparse(url).netloc != host:
+                continue
             if url in seen:
                 continue
             seen.add(url)

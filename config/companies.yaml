@@ -111,46 +111,86 @@ companies:
       same_host_only: true
 
   - name: 武田薬品工業
+    # 公式 newsroom は地域URLが流動的で安定セレクター未確定。TDnet安全網のみ。
     list_url: https://www.release.tdnet.info/
     enabled: true
     source_type: tdnet_only
     stock_code: "4502"
+    crawl_mode: live
     config: {}
+    notes: "cohort1: official site pending stable list_url"
 
   - name: 第一三共
-    list_url: https://www.release.tdnet.info/
+    list_url: https://www.daiichisankyo.co.jp/news/
     enabled: true
-    source_type: tdnet_only
+    source_type: json_api
     stock_code: "4568"
-    config: {}
+    crawl_mode: shadow
+    config:
+      json_url: https://www.daiichisankyo.co.jp/data/ann/1855.json
+      items_path: item
+      html_field: contents
+      html_link_selector: .newsTitle a
+      html_date_selector: .newsDate
+      date_field: anndate
+      base_url: https://www.daiichisankyo.co.jp
+    notes: "cohort1 shadow: CMS announcement JSON"
 
   - name: エーザイ
-    list_url: https://www.release.tdnet.info/
+    list_url: https://www.eisai.co.jp/news/index.html
     enabled: true
-    source_type: tdnet_only
+    source_type: html_css
     stock_code: "4523"
-    config: {}
+    crawl_mode: shadow
+    config:
+      item_selector: li.js-filter-topics-item
+      title_selector: a.list-news-link
+      date_selector: .list-news-date
+      link_selector: a.list-news-link
+      min_title_length: 12
+    notes: "cohort1 shadow: static news list"
 
   - name: 小野薬品工業
-    list_url: https://www.release.tdnet.info/
+    list_url: https://www.ono.co.jp/news/
     enabled: true
-    source_type: tdnet_only
+    source_type: html_css
     stock_code: "4528"
-    config: {}
+    crawl_mode: shadow
+    config:
+      item_selector: .page__news_list-item
+      title_selector: a
+      date_selector: .page__news_list-item
+      link_selector: a
+      min_title_length: 12
+    notes: "cohort1 shadow: static news list"
 
   - name: 塩野義製薬
-    list_url: https://www.release.tdnet.info/
+    list_url: https://www.shionogi.com/jp/ja/news.html
     enabled: true
-    source_type: tdnet_only
+    source_type: html_css
     stock_code: "4507"
-    config: {}
+    crawl_mode: shadow
+    config:
+      item_selector: .mod-news-list__content a
+      title_selector: a
+      link_selector: a
+      min_title_length: 12
+    notes: "cohort1 shadow: static news list"
 
   - name: 参天製薬
-    list_url: https://www.release.tdnet.info/
+    list_url: https://www.santen.com/ja/news
     enabled: true
-    source_type: tdnet_only
+    source_type: html_css
     stock_code: "4536"
-    config: {}
+    crawl_mode: shadow
+    config:
+      item_selector: .news-list > a
+      title_selector: .text
+      date_selector: .date
+      link_selector: a
+      min_title_length: 12
+      same_host_only: true
+    notes: "cohort1 shadow: static news list (EIR also present on IR pages)"
 
   - name: 東和薬品
     list_url: https://www.release.tdnet.info/
@@ -168,11 +208,14 @@ companies:
     notes: "リスト表記: サワイグループ"
 
   - name: 日本新薬
+    # 公式ニュース一覧は 403。TDnet 安全網のみ継続。
     list_url: https://www.release.tdnet.info/
     enabled: true
     source_type: tdnet_only
     stock_code: "4516"
+    crawl_mode: live
     config: {}
+    notes: "cohort1: official site 403 from crawler IPs"
 
   - name: キッセイ薬品工業
     list_url: https://www.release.tdnet.info/
@@ -218,11 +261,18 @@ companies:
     config: {}
 
   - name: JCRファーマ
-    list_url: https://www.release.tdnet.info/
+    list_url: https://www.jcrpharm.co.jp/news/index.html
     enabled: true
-    source_type: tdnet_only
+    source_type: html_css
     stock_code: "4552"
-    config: {}
+    crawl_mode: shadow
+    config:
+      item_selector: .news-list li
+      title_selector: a
+      date_selector: .news-item-date
+      link_selector: a
+      min_title_length: 10
+    notes: "cohort1 shadow: mixed IR/news list; filter in curation"
 
   - name: 生化学工業
     list_url: https://www.release.tdnet.info/
@@ -472,11 +522,17 @@ companies:
     config: {}
 
   - name: ネクセラファーマ
-    list_url: https://www.release.tdnet.info/
+    list_url: https://www.nxera.life/jp/news/release/
     enabled: true
-    source_type: tdnet_only
+    source_type: eir
     stock_code: "4565"
-    config: {}
+    crawl_mode: shadow
+    config:
+      wait_selector: ".eir a, a[href*='pdf'], a[href*='news']"
+      link_selector: .eir a
+      min_title_length: 12
+      same_host_only: false
+    notes: "cohort1 shadow: EIR widget via shared adapter"
 
   - name: ノイルイミューン・バイオテック
     list_url: https://www.release.tdnet.info/
@@ -507,11 +563,14 @@ companies:
     config: {}
 
   - name: ペプチドリーム
+    # 公式ニュースは 403。TDnet 安全網のみ継続。
     list_url: https://www.release.tdnet.info/
     enabled: true
     source_type: tdnet_only
     stock_code: "4587"
+    crawl_mode: live
     config: {}
+    notes: "cohort1: official site 403 from crawler IPs"
 
   - name: ヘリオス
     list_url: https://www.release.tdnet.info/

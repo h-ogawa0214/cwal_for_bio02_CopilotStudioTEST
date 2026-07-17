@@ -23,10 +23,18 @@ class ExtractedDetail:
 
 
 _MAX_SOURCE_TEXT = 12000
+_DEFAULT_SOURCE_PARAGRAPHS = 5
 
 
-def _source_text(paragraphs: list[str]) -> str:
-    text = "\n\n".join(p for p in paragraphs if p)
+def _source_text(paragraphs: list[str], *, max_paragraphs: int = _DEFAULT_SOURCE_PARAGRAPHS) -> str:
+    """Prefer the first substantive paragraphs; widen only when extraction is thin."""
+    cleaned = [p for p in paragraphs if p]
+    if not cleaned:
+        return ""
+    selected = cleaned[:max_paragraphs]
+    text = "\n\n".join(selected)
+    if len(text) < 400 and len(cleaned) > max_paragraphs:
+        text = "\n\n".join(cleaned[: max_paragraphs + 5])
     return text[:_MAX_SOURCE_TEXT]
 
 
