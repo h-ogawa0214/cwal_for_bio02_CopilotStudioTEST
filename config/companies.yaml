@@ -5,11 +5,11 @@ companies:
     source_type: html_css
     stock_code: "4503"
     config:
-      item_selector: "li.wd_item"
-      title_selector: "div.wd_title a"
-      date_selector: "div.wd_date"
-      link_selector: "div.wd_title a"
-      summary_selector: "div.wd_summary"
+      item_selector: li.wd_item
+      title_selector: div.wd_title a
+      date_selector: div.wd_date
+      link_selector: div.wd_title a
+      summary_selector: div.wd_summary
 
   - name: 大塚ホールディングス
     list_url: https://www.otsuka.com/jp/ir/news/
@@ -18,7 +18,7 @@ companies:
     stock_code: "4578"
     config:
       wait_selector: ".eir a, .eir_list a, a[href*='pdf'], a[href*='news']"
-      link_selector: ".eir a"
+      link_selector: .eir a
       min_title_length: 12
       same_host_only: false
 
@@ -28,10 +28,10 @@ companies:
     source_type: html_css
     stock_code: "4519"
     config:
-      item_selector: "li.ist-list01__item"
-      title_selector: "a.ist-list01__titleText"
-      date_selector: "time.ist-list01__date"
-      link_selector: "a.ist-list01__titleText"
+      item_selector: li.ist-list01__item
+      title_selector: a.ist-list01__titleText
+      date_selector: time.ist-list01__date
+      link_selector: a.ist-list01__titleText
 
   - name: 協和キリン
     list_url: https://www.kyowakirin.co.jp/pressroom/news_releases/index.html
@@ -50,17 +50,17 @@ companies:
     source_type: rss
     stock_code: "4506"
     config:
-      feed_url: https://www.sumitomo-pharma.co.jp/news/rss/index.xml
+      feed_url: "https://www.sumitomo-pharma.co.jp/news/rss/index.xml"
 
   - name: 明治製菓ファルマ
-    list_url: https://www.meiji-seika-pharma.co.jp/pressrelease/
     # GitHub Actions IP から xlsx が 403 のため当面スキップ
     # 非単独上場のため TDnet 証券コードなし（親会社は明治HD 2269）
+    list_url: https://www.meiji-seika-pharma.co.jp/pressrelease/
     enabled: false
     source_type: xlsx
     stock_code: ""
     config:
-      xlsx_url: https://www.meiji-seika-pharma.co.jp/pressrelease/xlsx/pressrelease.xlsx
+      xlsx_url: "https://www.meiji-seika-pharma.co.jp/pressrelease/xlsx/pressrelease.xlsx"
       title_column: title
       date_column: date
       url_column: url
@@ -73,9 +73,9 @@ companies:
     stock_code: "4560"
     config:
       item_selector: "dl.divide-y > div"
-      title_selector: "dd a"
-      date_selector: "dt"
-      link_selector: "dd a"
+      title_selector: dd a
+      date_selector: dt
+      link_selector: dd a
 
   - name: 持田製薬
     list_url: https://www.mochida.co.jp/news/
@@ -84,7 +84,7 @@ companies:
     stock_code: "4534"
     config:
       wait_selector: ".eir a, a[href*='pdf'], a[href*='news']"
-      link_selector: ".eir a"
+      link_selector: .eir a
       min_title_length: 12
       same_host_only: false
 
@@ -95,7 +95,7 @@ companies:
     stock_code: "4521"
     config:
       wait_selector: ".eir a, a[href*='pdf'], a[href*='nr']"
-      link_selector: ".eir a"
+      link_selector: .eir a
       min_title_length: 12
       same_host_only: false
 
@@ -109,3 +109,491 @@ companies:
       link_selector: "main a, .entry-content a, article a"
       min_title_length: 10
       same_host_only: true
+
+  - name: 武田薬品工業
+    list_url: https://www.release.tdnet.info/
+    enabled: true
+    source_type: tdnet_only
+    stock_code: "4502"
+    config: {}
+
+  - name: 第一三共
+    list_url: https://www.release.tdnet.info/
+    enabled: true
+    source_type: tdnet_only
+    stock_code: "4568"
+    config: {}
+
+  - name: エーザイ
+    list_url: https://www.release.tdnet.info/
+    enabled: true
+    source_type: tdnet_only
+    stock_code: "4523"
+    config: {}
+
+  - name: 小野薬品工業
+    list_url: https://www.release.tdnet.info/
+    enabled: true
+    source_type: tdnet_only
+    stock_code: "4528"
+    config: {}
+
+  - name: 塩野義製薬
+    list_url: https://www.release.tdnet.info/
+    enabled: true
+    source_type: tdnet_only
+    stock_code: "4507"
+    config: {}
+
+  - name: 参天製薬
+    list_url: https://www.release.tdnet.info/
+    enabled: true
+    source_type: tdnet_only
+    stock_code: "4536"
+    config: {}
+
+  - name: 東和薬品
+    list_url: https://www.release.tdnet.info/
+    enabled: true
+    source_type: tdnet_only
+    stock_code: "4553"
+    config: {}
+
+  - name: サワイグループホールディングス
+    list_url: https://www.release.tdnet.info/
+    enabled: true
+    source_type: tdnet_only
+    stock_code: "4887"
+    config: {}
+    notes: "リスト表記: サワイグループ"
+
+  - name: 日本新薬
+    list_url: https://www.release.tdnet.info/
+    enabled: true
+    source_type: tdnet_only
+    stock_code: "4516"
+    config: {}
+
+  - name: キッセイ薬品工業
+    list_url: https://www.release.tdnet.info/
+    enabled: true
+    source_type: tdnet_only
+    stock_code: "4547"
+    config: {}
+
+  - name: 扶桑薬品工業
+    list_url: https://www.release.tdnet.info/
+    enabled: true
+    source_type: tdnet_only
+    stock_code: "4538"
+    config: {}
+
+  - name: あすか製薬ホールディングス
+    list_url: https://www.release.tdnet.info/
+    enabled: true
+    source_type: tdnet_only
+    stock_code: "4886"
+    config: {}
+    notes: "リスト表記: あすか製薬HD"
+
+  - name: ゼリア新薬工業
+    list_url: https://www.release.tdnet.info/
+    enabled: true
+    source_type: tdnet_only
+    stock_code: "4559"
+    config: {}
+
+  - name: 日本化薬
+    list_url: https://www.release.tdnet.info/
+    enabled: true
+    source_type: tdnet_only
+    stock_code: "4272"
+    config: {}
+
+  - name: 富士製薬工業
+    list_url: https://www.release.tdnet.info/
+    enabled: true
+    source_type: tdnet_only
+    stock_code: "4554"
+    config: {}
+
+  - name: JCRファーマ
+    list_url: https://www.release.tdnet.info/
+    enabled: true
+    source_type: tdnet_only
+    stock_code: "4552"
+    config: {}
+
+  - name: 生化学工業
+    list_url: https://www.release.tdnet.info/
+    enabled: true
+    source_type: tdnet_only
+    stock_code: "4548"
+    config: {}
+
+  - name: 日本ケミファ
+    list_url: https://www.release.tdnet.info/
+    enabled: true
+    source_type: tdnet_only
+    stock_code: "4539"
+    config: {}
+
+  - name: わかもと製薬
+    list_url: https://www.release.tdnet.info/
+    enabled: true
+    source_type: tdnet_only
+    stock_code: "4512"
+    config: {}
+
+  - name: Chordia Therapeutics
+    list_url: https://www.release.tdnet.info/
+    enabled: true
+    source_type: tdnet_only
+    stock_code: "190A"
+    config: {}
+
+  - name: Delta-Fly Pharma
+    list_url: https://www.release.tdnet.info/
+    enabled: true
+    source_type: tdnet_only
+    stock_code: "4598"
+    config: {}
+
+  - name: Heartseed
+    list_url: https://www.release.tdnet.info/
+    enabled: true
+    source_type: tdnet_only
+    stock_code: "219A"
+    config: {}
+
+  - name: NANO MRNA
+    list_url: https://www.release.tdnet.info/
+    enabled: true
+    source_type: tdnet_only
+    stock_code: "4571"
+    config: {}
+    notes: "JPX銘柄名: NANOホールディングス"
+
+  - name: PRISM BioLab
+    list_url: https://www.release.tdnet.info/
+    enabled: true
+    source_type: tdnet_only
+    stock_code: "206A"
+    config: {}
+
+  - name: Veritas In Silico
+    list_url: https://www.release.tdnet.info/
+    enabled: true
+    source_type: tdnet_only
+    stock_code: "130A"
+    config: {}
+
+  - name: アンジェス
+    list_url: https://www.release.tdnet.info/
+    enabled: true
+    source_type: tdnet_only
+    stock_code: "4563"
+    config: {}
+
+  - name: イノバセル
+    list_url: https://www.release.tdnet.info/
+    enabled: true
+    source_type: tdnet_only
+    stock_code: "504A"
+    config: {}
+
+  - name: オンコセラピー・サイエンス
+    list_url: https://www.release.tdnet.info/
+    enabled: true
+    source_type: tdnet_only
+    stock_code: "4564"
+    config: {}
+
+  - name: オンコリスバイオファーマ
+    list_url: https://www.release.tdnet.info/
+    enabled: true
+    source_type: tdnet_only
+    stock_code: "4588"
+    config: {}
+
+  - name: カイオム・バイオサイエンス
+    list_url: https://www.release.tdnet.info/
+    enabled: true
+    source_type: tdnet_only
+    stock_code: "4583"
+    config: {}
+
+  - name: カルナバイオサイエンス
+    list_url: https://www.release.tdnet.info/
+    enabled: true
+    source_type: tdnet_only
+    stock_code: "4572"
+    config: {}
+
+  - name: キッズウェル・バイオ
+    list_url: https://www.release.tdnet.info/
+    enabled: true
+    source_type: tdnet_only
+    stock_code: "4584"
+    config: {}
+
+  - name: キャンバス
+    list_url: https://www.release.tdnet.info/
+    enabled: true
+    source_type: tdnet_only
+    stock_code: "4575"
+    config: {}
+
+  - name: クオリプス
+    list_url: https://www.release.tdnet.info/
+    enabled: true
+    source_type: tdnet_only
+    stock_code: "4894"
+    config: {}
+
+  - name: クリングルファーマ
+    list_url: https://www.release.tdnet.info/
+    enabled: true
+    source_type: tdnet_only
+    stock_code: "4884"
+    config: {}
+
+  - name: ケイファーマ
+    list_url: https://www.release.tdnet.info/
+    enabled: true
+    source_type: tdnet_only
+    stock_code: "4896"
+    config: {}
+
+  - name: サイフューズ
+    list_url: https://www.release.tdnet.info/
+    enabled: true
+    source_type: tdnet_only
+    stock_code: "4892"
+    config: {}
+
+  - name: サスメド
+    list_url: https://www.release.tdnet.info/
+    enabled: true
+    source_type: tdnet_only
+    stock_code: "4263"
+    config: {}
+
+  - name: サンバイオ
+    list_url: https://www.release.tdnet.info/
+    enabled: true
+    source_type: tdnet_only
+    stock_code: "4592"
+    config: {}
+
+  - name: ジーエヌアイグループ
+    list_url: https://www.release.tdnet.info/
+    enabled: true
+    source_type: tdnet_only
+    stock_code: "2160"
+    config: {}
+
+  - name: ジェイファーマ
+    list_url: https://www.release.tdnet.info/
+    enabled: true
+    source_type: tdnet_only
+    stock_code: "520A"
+    config: {}
+
+  - name: ジャパン・ティッシュエンジニアリング
+    list_url: https://www.release.tdnet.info/
+    enabled: true
+    source_type: tdnet_only
+    stock_code: "7774"
+    config: {}
+
+  - name: シンバイオ製薬
+    list_url: https://www.release.tdnet.info/
+    enabled: true
+    source_type: tdnet_only
+    stock_code: "4582"
+    config: {}
+
+  - name: ステムリム
+    list_url: https://www.release.tdnet.info/
+    enabled: true
+    source_type: tdnet_only
+    stock_code: "4599"
+    config: {}
+
+  - name: ステラファーマ
+    list_url: https://www.release.tdnet.info/
+    enabled: true
+    source_type: tdnet_only
+    stock_code: "4888"
+    config: {}
+
+  - name: スリー・ディー・マトリックス
+    list_url: https://www.release.tdnet.info/
+    enabled: true
+    source_type: tdnet_only
+    stock_code: "7777"
+    config: {}
+
+  - name: セルシード
+    list_url: https://www.release.tdnet.info/
+    enabled: true
+    source_type: tdnet_only
+    stock_code: "7776"
+    config: {}
+
+  - name: ソレイジア・ファーマ
+    list_url: https://www.release.tdnet.info/
+    enabled: true
+    source_type: tdnet_only
+    stock_code: "4597"
+    config: {}
+
+  - name: タカラバイオ
+    list_url: https://www.release.tdnet.info/
+    enabled: false
+    source_type: tdnet_only
+    stock_code: "4974"
+    config: {}
+    notes: "JPX上場廃止のため無効化（要確認）"
+
+  - name: デ・ウエスタン・セラピテクス研究所
+    list_url: https://www.release.tdnet.info/
+    enabled: true
+    source_type: tdnet_only
+    stock_code: "4576"
+    config: {}
+
+  - name: ティムス
+    list_url: https://www.release.tdnet.info/
+    enabled: true
+    source_type: tdnet_only
+    stock_code: "4891"
+    config: {}
+
+  - name: ネクセラファーマ
+    list_url: https://www.release.tdnet.info/
+    enabled: true
+    source_type: tdnet_only
+    stock_code: "4565"
+    config: {}
+
+  - name: ノイルイミューン・バイオテック
+    list_url: https://www.release.tdnet.info/
+    enabled: true
+    source_type: tdnet_only
+    stock_code: "4893"
+    config: {}
+
+  - name: ファーマフーズ
+    list_url: https://www.release.tdnet.info/
+    enabled: true
+    source_type: tdnet_only
+    stock_code: "2929"
+    config: {}
+
+  - name: ファンペップ
+    list_url: https://www.release.tdnet.info/
+    enabled: true
+    source_type: tdnet_only
+    stock_code: "4881"
+    config: {}
+
+  - name: ブライトパス・バイオ
+    list_url: https://www.release.tdnet.info/
+    enabled: true
+    source_type: tdnet_only
+    stock_code: "4594"
+    config: {}
+
+  - name: ペプチドリーム
+    list_url: https://www.release.tdnet.info/
+    enabled: true
+    source_type: tdnet_only
+    stock_code: "4587"
+    config: {}
+
+  - name: ヘリオス
+    list_url: https://www.release.tdnet.info/
+    enabled: true
+    source_type: tdnet_only
+    stock_code: "4593"
+    config: {}
+
+  - name: ペルセウスプロテオミクス
+    list_url: https://www.release.tdnet.info/
+    enabled: true
+    source_type: tdnet_only
+    stock_code: "4882"
+    config: {}
+
+  - name: メドレックス
+    list_url: https://www.release.tdnet.info/
+    enabled: true
+    source_type: tdnet_only
+    stock_code: "4586"
+    config: {}
+
+  - name: モダリス
+    list_url: https://www.release.tdnet.info/
+    enabled: true
+    source_type: tdnet_only
+    stock_code: "4883"
+    config: {}
+
+  - name: ラクオリア創薬
+    list_url: https://www.release.tdnet.info/
+    enabled: true
+    source_type: tdnet_only
+    stock_code: "4579"
+    config: {}
+
+  - name: リプロセル
+    list_url: https://www.release.tdnet.info/
+    enabled: true
+    source_type: tdnet_only
+    stock_code: "4978"
+    config: {}
+
+  - name: リボミック
+    list_url: https://www.release.tdnet.info/
+    enabled: true
+    source_type: tdnet_only
+    stock_code: "4591"
+    config: {}
+
+  - name: 窪田製薬ホールディングス
+    list_url: https://www.release.tdnet.info/
+    enabled: true
+    source_type: tdnet_only
+    stock_code: "4596"
+    config: {}
+
+  - name: 坪田ラボ
+    list_url: https://www.release.tdnet.info/
+    enabled: true
+    source_type: tdnet_only
+    stock_code: "4890"
+    config: {}
+
+  - name: 免疫生物研究所
+    list_url: https://www.release.tdnet.info/
+    enabled: true
+    source_type: tdnet_only
+    stock_code: "4570"
+    config: {}
+
+  - name: メディシノバ
+    list_url: https://www.release.tdnet.info/
+    enabled: true
+    source_type: tdnet_only
+    stock_code: "4875"
+    config: {}
+    notes: "JPX銘柄名: メディシノバ・インク"
+
+  - name: メディネット
+    list_url: https://www.release.tdnet.info/
+    enabled: true
+    source_type: tdnet_only
+    stock_code: "2370"
+    config: {}

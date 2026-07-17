@@ -17,22 +17,13 @@
 
 `reference_url` は、公式URLから本文を取得できず別媒体を参照した場合だけ、その参照元URLを記録します。
 
-## 対象企業（初期10社）
+## 対象企業
 
-`config/companies.yaml` に定義。初回実行時、スプレッドシートの `companies` が空なら自動でシードします。以後はシート側を編集すれば社数を増やせます。
+`config/companies.yaml` に定義。初回実行時、スプレッドシートの `companies` が空なら自動でシードします。
+以後の追加分は起動時にシートへマージ（未登録社の追記・空の証券コード補完）します。
 
-| company_name | list_url | source_type |
-|---|---|---|
-| アステラス製薬 | https://jp.newsroom.astellas.com/news | html_css |
-| 大塚ホールディングス | https://www.otsuka.com/jp/ir/news/ | playwright |
-| 中外製薬 | https://www.chugai-pharm.co.jp/news/ | html_css |
-| 協和キリン | https://www.kyowakirin.co.jp/pressroom/news_releases/index.html | playwright |
-| 住友ファーマ | https://www.sumitomo-pharma.co.jp/news/ir/ | rss |
-| 明治製菓ファルマ | https://www.meiji-seika-pharma.co.jp/pressrelease/ | xlsx |
-| 杏林製薬 | https://www.kyorin-pharm.co.jp/news/ | html_css |
-| 持田製薬 | https://www.mochida.co.jp/news/ | playwright |
-| 科研製薬 | https://www.kaken.co.jp/nr/ | playwright |
-| レナサイエンス | https://www.renascience.co.jp/ir/ir_news/ | playwright |
+大手などは各社サイト抽出（`html_css` / `rss` / `xlsx` / `playwright`）を使い、
+それ以外の上場企業は当面 `tdnet_only`（公式 TDnet 閲覧サービスのみ）でカバーします。
 
 `companies` シート列:
 
@@ -40,7 +31,7 @@
 - `stock_code`（東証コード4桁。上場企業は TDnet 補助取得に使用）
 - `list_url`
 - `enabled` (`TRUE` / `FALSE`)
-- `source_type` (`html_css` / `rss` / `xlsx` / `playwright`)
+- `source_type` (`html_css` / `rss` / `xlsx` / `playwright` / `tdnet_only`)
 - `config_json`（抽出用設定の JSON）
 - `notes`
 

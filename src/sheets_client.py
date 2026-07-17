@@ -109,20 +109,87 @@ class SheetsClient:
         ws = self._book.worksheet(self.companies_sheet_name)
         values = [COMPANY_HEADERS]
         for company in companies:
-            values.append(
-                [
-                    company.name,
-                    company.stock_code,
-                    company.list_url,
-                    "TRUE" if company.enabled else "FALSE",
-                    company.source_type,
-                    json.dumps(company.config, ensure_ascii=False),
-                    company.notes,
-                ]
-            )
+            values.append(self._company_row(company))
         ws.clear()
         ws.update(range_name="A1", values=values, value_input_option="USER_ENTERED")
         return len(values) - 1
+
+    def sync_companies(self, companies: Iterable[Company]) -> dict[str, int]:
+        """Append missing companies and fill blank stock_code on existing rows."""
+        self.ensure_schema()
+        ws = self._book.worksheet(self.companies_sheet_name)
+        values = ws.get_all_values()
+        if not values:
+            ws.update(
+                range_name="A1",
+                values=[COMPANY_HEADERS],
+                value_input_option="USER_ENTERED",
+            )
+            values = [COMPANY_HEADERS]
+
+        headers = values[0]
+        # Ensure expected headers exist (ensure_schema may have appended at end).
+        header_index = {name: idx for idx, name in enumerate(headers)}
+        name_idx = header_index.get("company_name", 0)
+        stock_idx = header_index.get("stock_code")
+
+        existing_names = {
+            row[name_idx].strip()
+            for row in values[1:]
+            if len(row) > name_idx and row[name_idx].strip()
+        }
+        appended = 0
+        updated_codes = 0
+        rows_to_append: list[list[str]] = []
+
+        for company in companies:
+            if company.name not in existing_names:
+                rows_to_append.append(self._company_row(company))
+                existing_names.add(company.name)
+                appended += 1
+                continue
+            if not company.stock_code or stock_idx is None:
+                continue
+            for row_number, row in enumerate(values[1:], start=2):
+                if len(row) <= name_idx or row[name_idx].strip() != company.name:
+                    continue
+                current = row[stock_idx].strip() if len(row) > stock_idx else ""
+                if current:
+                    break
+                cell = gspread.utils.rowcol_to_a1(row_number, stock_idx + 1)
+                ws.update(
+                    range_name=cell,
+                    values=[[company.stock_code]],
+                    value_input_option="USER_ENTERED",
+                )
+                updated_codes += 1
+                break
+
+        if rows_to_append:
+            # Pad rows to current sheet width if headers were extended in place.
+            width = len(headers)
+            padded = []
+            for row in rows_to_append:
+                mapped = [""] * width
+                for header, value in zip(COMPANY_HEADERS, row):
+                    if header in header_index:
+                        mapped[header_index[header]] = value
+                padded.append(mapped)
+            ws.append_rows(padded, value_input_option="USER_ENTERED")
+
+        return {"appended": appended, "updated_codes": updated_codes}
+
+    @staticmethod
+    def _company_row(company: Company) -> list[str]:
+        return [
+            company.name,
+            company.stock_code,
+            company.list_url,
+            "TRUE" if company.enabled else "FALSE",
+            company.source_type,
+            json.dumps(company.config, ensure_ascii=False),
+            company.notes,
+        ]
 
     def existing_urls(self) -> set[str]:
         ws = self._book.worksheet(self.releases_sheet_name)

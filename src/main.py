@@ -102,6 +102,13 @@ def run(seed_only: bool = False, reprocess_existing: bool = False) -> int:
     seeded = sheets.seed_companies_if_empty(yaml_companies)
     if seeded:
         logger.info("Seeded %s companies into spreadsheet", seeded)
+    synced = sheets.sync_companies(yaml_companies)
+    if synced["appended"] or synced["updated_codes"]:
+        logger.info(
+            "Synced companies sheet (appended=%s, stock_codes_filled=%s)",
+            synced["appended"],
+            synced["updated_codes"],
+        )
 
     if seed_only:
         return 0

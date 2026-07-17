@@ -5,11 +5,13 @@ from ..models import Company, RawRelease
 from .base import Extractor
 from .feeds import RssExtractor, XlsxExtractor
 from .html_css import HtmlCssExtractor, PlaywrightExtractor
+from .noop import TdnetOnlyExtractor
 from .tdnet import TdnetExtractor, fetch_tdnet_releases
 
 __all__ = [
     "Extractor",
     "TdnetExtractor",
+    "TdnetOnlyExtractor",
     "fetch_company_releases",
     "fetch_tdnet_releases",
     "get_extractor",
@@ -23,6 +25,7 @@ def get_extractor(source_type: str, http: HttpClient) -> Extractor:
         RssExtractor.source_type: RssExtractor,
         XlsxExtractor.source_type: XlsxExtractor,
         TdnetExtractor.source_type: TdnetExtractor,
+        TdnetOnlyExtractor.source_type: TdnetOnlyExtractor,
     }
     cls = mapping.get(source_type)
     if not cls:
