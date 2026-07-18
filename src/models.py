@@ -28,6 +28,7 @@ class RawRelease(BaseModel):
     summary: str = ""
     source_type: str = ""
     reference_url: str = ""
+    crawl_mode: CrawlMode = "live"
 
 
 class CuratedRelease(BaseModel):

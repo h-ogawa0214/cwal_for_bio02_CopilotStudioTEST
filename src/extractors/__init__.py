@@ -7,6 +7,7 @@ from .eir import EirExtractor
 from .feeds import RssExtractor, XlsxExtractor
 from .html_css import HtmlCssExtractor, PlaywrightExtractor
 from .noop import TdnetOnlyExtractor
+from .prtimes import PrTimesKeywordExtractor
 from .structured import JsonApiExtractor, SitemapExtractor
 from .tdnet import TdnetExtractor, fetch_tdnet_releases
 
@@ -31,6 +32,7 @@ def get_extractor(source_type: str, http: HttpClient) -> Extractor:
         JsonApiExtractor.source_type: JsonApiExtractor,
         SitemapExtractor.source_type: SitemapExtractor,
         EirExtractor.source_type: EirExtractor,
+        PrTimesKeywordExtractor.source_type: PrTimesKeywordExtractor,
     }
     cls = mapping.get(source_type)
     if not cls:
@@ -42,4 +44,12 @@ def fetch_company_releases(
     company: Company, http: HttpClient, limit: int
 ) -> list[RawRelease]:
     extractor = get_extractor(company.source_type, http)
-    return extractor.fetch(company, limit=limit)
+    releases = extractor.fetch(company, limit=limit)
+    # Stamp the owning row's crawl_mode unless the extractor set it per-release
+    # (aggregators like PR TIMES emit many issuers under one shadow row).
+    return [
+        release if release.crawl_mode != "live" else release.model_copy(
+            update={"crawl_mode": company.crawl_mode}
+        )
+        for release in releases
+    ]

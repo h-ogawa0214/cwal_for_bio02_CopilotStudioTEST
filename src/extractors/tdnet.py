@@ -76,6 +76,7 @@ def parse_tdnet_list_html(
                 summary="",
                 source_type=TdnetExtractor.source_type,
                 reference_url="",
+                crawl_mode=company.crawl_mode,
             )
         )
     return results

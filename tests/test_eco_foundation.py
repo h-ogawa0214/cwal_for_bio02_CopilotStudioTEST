@@ -6,9 +6,10 @@ from datetime import date
 from unittest.mock import MagicMock
 
 from src.dedupe import canonicalize_url, content_hash, titles_likely_same
+from src.extractors.prtimes import PrTimesKeywordExtractor
 from src.extractors.structured import JsonApiExtractor
 from src.main import _cluster_candidates
-from src.models import RawRelease
+from src.models import Company, RawRelease
 
 
 class EcoFoundationTests(unittest.TestCase):
@@ -49,9 +50,63 @@ class EcoFoundationTests(unittest.TestCase):
         self.assertEqual(merged[0].source_type, "html_css")
         self.assertTrue(merged[0].reference_url.endswith(".pdf"))
 
-    def test_json_api_extractor_parses_html_fragments(self) -> None:
-        from src.models import Company
+    def test_prtimes_keyword_extractor_parses_items(self) -> None:
+        page = """
+        <html><body>
+        <article class="item item-ordinary">
+          <div class="thumbnail-title-wrap">
+            <h3 class="title-item">
+              <a class="link-title-item" href="/main/html/rd/p/000000743.000006776.html">
+                FRONTEOと参天製薬、共創プロジェクト第2弾を開始
+              </a>
+            </h3>
+          </div>
+          <time class="time-release" datetime="2026-07-16T16:00:00+0900">2026年7月16日 16時00分</time>
+          <a class="link-name-company name-company" href="/main/html/searchrlp/company_id/6776">株式会社FRONTEO</a>
+        </article>
+        </body></html>
+        """
+        http = MagicMock()
+        http.get_text.return_value = page
+        company = Company(
+            name="PR TIMES（医薬・創薬・バイオ）",
+            list_url="https://prtimes.jp/topics/keywords/創薬",
+            source_type="prtimes",
+            crawl_mode="shadow",
+            config={"keywords": ["創薬"], "max_per_keyword": 10},
+        )
+        items = PrTimesKeywordExtractor(http).fetch(company, limit=10)
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0].company, "株式会社FRONTEO")
+        self.assertEqual(items[0].source_type, "prtimes")
+        self.assertEqual(items[0].crawl_mode, "shadow")
+        self.assertEqual(str(items[0].published_on), "2026-07-16")
+        self.assertTrue(items[0].url.endswith("000000743.000006776.html"))
 
+    def test_cluster_live_wins_over_shadow(self) -> None:
+        items = [
+            RawRelease(
+                company="株式会社FRONTEO",
+                title="共創プロジェクト第2弾を開始",
+                url="https://prtimes.jp/main/html/rd/p/1.2.html",
+                published_on=date(2026, 7, 16),
+                source_type="prtimes",
+                crawl_mode="shadow",
+            ),
+            RawRelease(
+                company="株式会社FRONTEO",
+                title="共創プロジェクト第2弾を開始のお知らせ",
+                url="https://www.release.tdnet.info/x.pdf",
+                published_on=date(2026, 7, 16),
+                source_type="tdnet",
+                crawl_mode="live",
+            ),
+        ]
+        merged = _cluster_candidates(items)
+        self.assertEqual(len(merged), 1)
+        self.assertEqual(merged[0].crawl_mode, "live")
+
+    def test_json_api_extractor_parses_html_fragments(self) -> None:
         payload = {
             "item": [
                 {
@@ -65,8 +120,8 @@ class EcoFoundationTests(unittest.TestCase):
                 }
             ]
         }
-        http = MagicMock()
-        http.get_text.return_value = json.dumps(payload)
+        http2 = MagicMock()
+        http2.get_text.return_value = json.dumps(payload)
         company = Company(
             name="第一三共",
             list_url="https://www.daiichisankyo.co.jp/news/",
@@ -81,7 +136,7 @@ class EcoFoundationTests(unittest.TestCase):
                 "base_url": "https://www.daiichisankyo.co.jp",
             },
         )
-        items = JsonApiExtractor(http).fetch(company, limit=5)
+        items = JsonApiExtractor(http2).fetch(company, limit=5)
         self.assertEqual(len(items), 1)
         self.assertEqual(items[0].title, "治験開始のお知らせ")
         self.assertTrue(items[0].url.endswith("/news/detail/index_1.html"))

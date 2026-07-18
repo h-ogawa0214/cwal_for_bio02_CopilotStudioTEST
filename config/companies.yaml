@@ -1,4 +1,22 @@
 companies:
+  - name: PR TIMES（医薬・創薬・バイオ）
+    # PR TIMES はカテゴリ別RSSが無いため、キーワードタグ一覧ページを巡回する。
+    # 1行で複数社の未上場バイオ／研究団体のPRを拾い、TDnet非掲載分を補完する。
+    list_url: https://prtimes.jp/topics/keywords/創薬
+    enabled: true
+    source_type: prtimes
+    stock_code: ""
+    crawl_mode: shadow
+    config:
+      keywords:
+        - 創薬
+        - バイオテクノロジー
+        - 医薬品
+        - 動物用医薬品
+        - フードテック
+      max_per_keyword: 10
+    notes: "keyword-tag aggregator; shadow until incremental yield confirmed"
+
   - name: アステラス製薬
     list_url: https://jp.newsroom.astellas.com/news
     enabled: true

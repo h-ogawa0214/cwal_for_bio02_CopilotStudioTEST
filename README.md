@@ -29,6 +29,9 @@ Google Sheets は `enabled` と `crawl_mode`（live / shadow）など運用上�
 大手などは各社サイト抽出（`html_css` / `rss` / `xlsx` / `json_api` / `sitemap` / `eir` / `playwright`）を使い、
 それ以外の上場企業は当面 `tdnet_only`（公式 TDnet 閲覧サービスのみ）でカバーします。
 
+`prtimes` は PR TIMES のキーワードタグ一覧（医薬・創薬・バイオテクノロジー等）を1行で巡回し、
+TDnet に載らない未上場バイオ・研究団体の PR を補完します（各リリースの発表主体は自動判定）。
+
 第1陣の公式ソースは `crawl_mode: shadow` で先行運用します（取得・判定はするが `releases` には書かない）。  
 詳細は `config/cohort_one.md` / `config/cohort_rollout.md` を参照。
 
@@ -126,6 +129,18 @@ Actions タブから `workflow_dispatch` でも手動実行できます。
   "base_url": "https://example.com"
 }
 ```
+
+例（PR TIMES キーワードタグ）:
+
+```json
+{
+  "keywords": ["創薬", "バイオテクノロジー", "医薬品", "動物用医薬品", "フードテック"],
+  "max_per_keyword": 10
+}
+```
+
+PR TIMES はカテゴリ別 RSS を提供していないため、キーワードタグの一覧ページを巡回します。
+増分が確認できるまで `crawl_mode: shadow` で運用してください。
 
 ## 注意
 

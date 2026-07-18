@@ -111,12 +111,9 @@ def _cluster_candidates(raw_items: list[RawRelease]) -> list[RawRelease]:
         others = [item for item in cluster if item.url != preferred.url]
         if others and not preferred.reference_url:
             preferred = preferred.model_copy(update={"reference_url": others[0].url})
-        if len(cluster) > 1:
-            sources = {item.source_type for item in cluster}
-            if "tdnet" in sources and any(s != "tdnet" for s in sources):
-                preferred = preferred.model_copy(
-                    update={"source_type": preferred.source_type or "site"}
-                )
+        # A live source must win for writing even if a shadow source is preferred.
+        if any(item.crawl_mode == "live" for item in cluster):
+            preferred = preferred.model_copy(update={"crawl_mode": "live"})
         merged.append(preferred)
     return merged
 
@@ -272,7 +269,7 @@ def _process_raw_items(
         if item is None:
             continue
 
-        mode = company_modes.get(raw.company, "live")
+        mode = raw.crawl_mode or company_modes.get(raw.company, "live")
         item = item.model_copy(update={"crawl_mode": mode, "source_type": raw.source_type})
         item_fingerprint = release_fingerprint(
             item.company,
