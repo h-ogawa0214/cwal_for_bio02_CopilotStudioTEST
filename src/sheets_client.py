@@ -191,6 +191,10 @@ class SheetsClient:
         appended = 0
         updated_fields = 0
         rows_to_append: list[list[str]] = []
+        # Collect all cell edits and flush them in a single batch_update call to
+        # stay under the Sheets "write requests per minute" quota (per-cell
+        # updates for ~80 companies previously tripped a 429).
+        pending_cells: list[dict] = []
 
         authority_fields = {
             "list_url": lambda c: c.list_url,
@@ -199,38 +203,44 @@ class SheetsClient:
             "config_json": lambda c: json.dumps(c.config, ensure_ascii=False),
             "crawl_mode": lambda c: c.crawl_mode,
         }
+        companies_by_name = {c.name: c for c in companies}
 
-        for company in companies:
+        for company in companies_by_name.values():
             if company.name not in existing_names:
                 rows_to_append.append(self._company_row(company))
                 existing_names.add(company.name)
                 appended += 1
-                continue
 
-            for row_number, row in enumerate(values[1:], start=2):
-                if len(row) <= name_idx or row[name_idx].strip() != company.name:
+        for row_number, row in enumerate(values[1:], start=2):
+            if len(row) <= name_idx:
+                continue
+            name = row[name_idx].strip()
+            company = companies_by_name.get(name)
+            if company is None:
+                continue
+            for field, getter in authority_fields.items():
+                col_idx = header_index.get(field)
+                if col_idx is None:
                     continue
-                for field, getter in authority_fields.items():
-                    col_idx = header_index.get(field)
-                    if col_idx is None:
-                        continue
-                    desired = getter(company)
-                    if field == "stock_code" and not desired:
-                        continue
-                    current = row[col_idx].strip() if len(row) > col_idx else ""
-                    # Keep an explicit sheet crawl_mode once set.
-                    if field == "crawl_mode" and current:
-                        continue
-                    if current == desired:
-                        continue
-                    cell = gspread.utils.rowcol_to_a1(row_number, col_idx + 1)
-                    ws.update(
-                        range_name=cell,
-                        values=[[desired]],
-                        value_input_option="USER_ENTERED",
-                    )
-                    updated_fields += 1
-                break
+                desired = getter(company)
+                if field == "stock_code" and not desired:
+                    continue
+                current = row[col_idx].strip() if len(row) > col_idx else ""
+                # Keep an explicit sheet crawl_mode once set.
+                if field == "crawl_mode" and current:
+                    continue
+                if current == desired:
+                    continue
+                pending_cells.append(
+                    {
+                        "range": gspread.utils.rowcol_to_a1(row_number, col_idx + 1),
+                        "values": [[desired]],
+                    }
+                )
+                updated_fields += 1
+
+        if pending_cells:
+            ws.batch_update(pending_cells, value_input_option="USER_ENTERED")
 
         if rows_to_append:
             width = len(headers)
