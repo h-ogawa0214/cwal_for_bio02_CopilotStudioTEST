@@ -7,9 +7,9 @@
 | 企業 | 採用方式 | crawl_mode | 結果 |
 |---|---|---|---|
 | 第一三共 | `json_api` (`/data/ann/1855.json`) | shadow | 一覧JSONが安定。本番化候補 |
-| エーザイ | `html_css` | shadow | 静的リスト取得可 |
+| エーザイ | `tdnet_only` | live | 公式ニュースがクローラIPから403（2026-07に判明）。TDnet安全網へ切替 |
 | 小野薬品工業 | `html_css` | shadow | 静的リスト取得可 |
-| 塩野義製薬 | `html_css` | shadow | 静的リスト取得可 |
+| 塩野義製薬 | `html_css` | shadow | プレスリリースのみ抽出・`.section-tag__time`で日付取得（2026-07に修正） |
 | 参天製薬 | `html_css` | shadow | 静的リスト取得可（IRにEIR痕跡あり） |
 | JCRファーマ | `html_css` | shadow | 取得可。IR資料混在のため選別必須 |
 | ネクセラファーマ | `eir` | shadow | EIRウィジェット。共有アダプター＋Playwrightフォールバック |

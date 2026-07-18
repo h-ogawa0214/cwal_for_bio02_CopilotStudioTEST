@@ -32,8 +32,13 @@ Google Sheets は `enabled` と `crawl_mode`（live / shadow）など運用上�
 `prtimes` は PR TIMES のキーワードタグ一覧（医薬・創薬・バイオテクノロジー等）を1行で巡回し、
 TDnet に載らない未上場バイオ・研究団体の PR を補完します（各リリースの発表主体は自動判定）。
 
-第1陣の公式ソースは `crawl_mode: shadow` で先行運用します（取得・判定はするが `releases` には書かない）。  
-詳細は `config/cohort_one.md` / `config/cohort_rollout.md` を参照。
+`prtimes_company` は特定企業の PR TIMES 企業ページを JSON API 経由で取得します。
+`config.company_id`（企業ページ URL 末尾）で対象を指定し、`config.include_keywords`
+（例: `出資 / 資本参加`）でタイトルを事前フィルタします。VC の「●●に出資」告知のみを
+拾う用途に使用。詳細は `config/vc_cohort.md`。
+
+第1陣の公式ソースと VC 陣は `crawl_mode: shadow` で先行運用します（取得・判定はするが `releases` には書かない）。  
+詳細は `config/cohort_one.md` / `config/cohort_rollout.md` / `config/vc_cohort.md` を参照。
 
 `companies` シート列:
 

@@ -7,7 +7,7 @@ from .eir import EirExtractor
 from .feeds import RssExtractor, XlsxExtractor
 from .html_css import HtmlCssExtractor, PlaywrightExtractor
 from .noop import TdnetOnlyExtractor
-from .prtimes import PrTimesKeywordExtractor
+from .prtimes import PrTimesCompanyExtractor, PrTimesKeywordExtractor
 from .structured import JsonApiExtractor, SitemapExtractor
 from .tdnet import TdnetExtractor, fetch_tdnet_releases
 
@@ -33,6 +33,7 @@ def get_extractor(source_type: str, http: HttpClient) -> Extractor:
         SitemapExtractor.source_type: SitemapExtractor,
         EirExtractor.source_type: EirExtractor,
         PrTimesKeywordExtractor.source_type: PrTimesKeywordExtractor,
+        PrTimesCompanyExtractor.source_type: PrTimesCompanyExtractor,
     }
     cls = mapping.get(source_type)
     if not cls:

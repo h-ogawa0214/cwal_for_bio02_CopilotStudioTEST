@@ -6,7 +6,7 @@ from datetime import date
 from unittest.mock import MagicMock
 
 from src.dedupe import canonicalize_url, content_hash, titles_likely_same
-from src.extractors.prtimes import PrTimesKeywordExtractor
+from src.extractors.prtimes import PrTimesCompanyExtractor, PrTimesKeywordExtractor
 from src.extractors.structured import JsonApiExtractor
 from src.main import _cluster_candidates
 from src.models import Company, RawRelease
@@ -82,6 +82,70 @@ class EcoFoundationTests(unittest.TestCase):
         self.assertEqual(items[0].crawl_mode, "shadow")
         self.assertEqual(str(items[0].published_on), "2026-07-16")
         self.assertTrue(items[0].url.endswith("000000743.000006776.html"))
+
+    def test_prtimes_company_extractor_filters_investment_titles(self) -> None:
+        payload = {
+            "status": 200,
+            "data": {
+                "total": 3,
+                "data": [
+                    {
+                        "id": 10,
+                        "title": "株式会社サンプルへの資本参加に関するお知らせ",
+                        "url": "/main/html/rd/p/000000010.000057515.html",
+                        "company": {"name_origin": "ジャフコ グループ株式会社"},
+                        "release_comple_date": "2026-07-13T12:10:00+09:00",
+                    },
+                    {
+                        "id": 11,
+                        "title": "JAFCO SEED 2026 開催のお知らせ",
+                        "url": "/main/html/rd/p/000000011.000057515.html",
+                        "company": {"name_origin": "ジャフコ グループ株式会社"},
+                        "release_comple_date": "2026-07-10T12:10:00+09:00",
+                    },
+                    {
+                        "id": 12,
+                        "title": "スタートアップABCに出資しました",
+                        "url": "/main/html/rd/p/000000012.000057515.html",
+                        "company": {"name_origin": "ジャフコ グループ株式会社"},
+                        "release_comple_date": "2026-07-01T12:10:00+09:00",
+                    },
+                ],
+            },
+        }
+        http = MagicMock()
+        http.get_text.return_value = json.dumps(payload)
+        company = Company(
+            name="ジャフコ グループ",
+            list_url="https://prtimes.jp/main/html/searchrlp/company_id/57515",
+            source_type="prtimes_company",
+            crawl_mode="shadow",
+            config={"company_id": 57515, "include_keywords": ["出資", "資本参加"]},
+        )
+        items = PrTimesCompanyExtractor(http).fetch(company, limit=10)
+        # The events post ("JAFCO SEED") is filtered out; investment posts kept.
+        self.assertEqual(len(items), 2)
+        titles = {i.title for i in items}
+        self.assertIn("株式会社サンプルへの資本参加に関するお知らせ", titles)
+        self.assertIn("スタートアップABCに出資しました", titles)
+        self.assertNotIn("JAFCO SEED 2026 開催のお知らせ", titles)
+        first = items[0]
+        self.assertEqual(first.company, "ジャフコ グループ")
+        self.assertEqual(first.source_type, "prtimes_company")
+        self.assertEqual(str(first.published_on), "2026-07-13")
+        self.assertTrue(first.url.startswith("https://prtimes.jp/"))
+
+    def test_prtimes_company_extractor_requires_company_id(self) -> None:
+        http = MagicMock()
+        company = Company(
+            name="No ID VC",
+            list_url="https://prtimes.jp/",
+            source_type="prtimes_company",
+            crawl_mode="shadow",
+            config={},
+        )
+        self.assertEqual(PrTimesCompanyExtractor(http).fetch(company, limit=10), [])
+        http.get_text.assert_not_called()
 
     def test_cluster_live_wins_over_shadow(self) -> None:
         items = [

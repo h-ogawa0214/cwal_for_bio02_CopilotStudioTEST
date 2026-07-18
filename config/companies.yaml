@@ -17,6 +17,189 @@ companies:
       max_per_keyword: 10
     notes: "keyword-tag aggregator; shadow until incremental yield confirmed"
 
+  # --- VC陣（PR TIMES企業別API / 「●●に出資」等の投資リリースのみ） ---
+  # company_id は PR TIMES 企業ページ URL 末尾。include_keywords でタイトルを
+  # 事前フィルタし、投資告知以外（イベント/採用/ファンド設立）をLLM前に落とす。
+  - name: Angel Bridge
+    list_url: https://prtimes.jp/main/html/searchrlp/company_id/118632
+    enabled: true
+    source_type: prtimes_company
+    crawl_mode: shadow
+    config:
+      company_id: 118632
+      include_keywords: ["出資", "資本参加", "リード投資", "引受"]
+    notes: "VC cohort: 投資リリース (shadow)"
+
+  - name: Beyond Next Ventures
+    list_url: https://prtimes.jp/main/html/searchrlp/company_id/17460
+    enabled: true
+    source_type: prtimes_company
+    crawl_mode: shadow
+    config:
+      company_id: 17460
+      include_keywords: ["出資", "資本参加", "リード投資", "引受"]
+    notes: "VC cohort: 投資リリース (shadow)"
+
+  - name: Diamond Medino Capital
+    list_url: https://prtimes.jp/main/html/searchrlp/company_id/112480
+    enabled: true
+    source_type: prtimes_company
+    crawl_mode: shadow
+    config:
+      company_id: 112480
+      include_keywords: ["出資", "資本参加", "リード投資", "引受"]
+    notes: "VC cohort: 投資リリース (shadow)"
+
+  - name: FFGベンチャービジネスパートナーズ
+    list_url: https://prtimes.jp/main/html/searchrlp/company_id/79435
+    enabled: true
+    source_type: prtimes_company
+    crawl_mode: shadow
+    config:
+      company_id: 79435
+      include_keywords: ["出資", "資本参加", "リード投資", "引受"]
+    notes: "VC cohort: 投資リリース (shadow)"
+
+  - name: Newsight Tech Angels
+    list_url: https://prtimes.jp/main/html/searchrlp/company_id/110083
+    enabled: true
+    source_type: prtimes_company
+    crawl_mode: shadow
+    config:
+      company_id: 110083
+      include_keywords: ["出資", "資本参加", "リード投資", "引受"]
+    notes: "VC cohort: 投資リリース (shadow)"
+
+  - name: Plug and Play Japan
+    list_url: https://prtimes.jp/main/html/searchrlp/company_id/28153
+    enabled: true
+    source_type: prtimes_company
+    crawl_mode: shadow
+    config:
+      company_id: 28153
+      include_keywords: ["出資", "資本参加", "リード投資", "引受"]
+    notes: "VC cohort: 投資リリース (shadow)"
+
+  - name: グローバル・ブレイン
+    list_url: https://prtimes.jp/main/html/searchrlp/company_id/47342
+    enabled: true
+    source_type: prtimes_company
+    crawl_mode: shadow
+    config:
+      company_id: 47342
+      include_keywords: ["出資", "資本参加", "リード投資", "引受"]
+    notes: "VC cohort: 投資リリース (shadow)"
+
+  - name: ニッセイ・キャピタル
+    list_url: https://prtimes.jp/main/html/searchrlp/company_id/43106
+    enabled: true
+    source_type: prtimes_company
+    crawl_mode: shadow
+    config:
+      company_id: 43106
+      include_keywords: ["出資", "資本参加", "リード投資", "引受"]
+    notes: "VC cohort: 投資リリース (shadow)"
+
+  - name: 日本アジア投資
+    list_url: https://prtimes.jp/main/html/searchrlp/company_id/120168
+    enabled: true
+    source_type: prtimes_company
+    crawl_mode: shadow
+    config:
+      company_id: 120168
+      include_keywords: ["出資", "資本参加", "リード投資", "引受"]
+    notes: "VC cohort: 投資リリース (shadow)"
+
+  - name: ファストトラックイニシアティブ
+    list_url: https://prtimes.jp/main/html/searchrlp/company_id/13289
+    enabled: true
+    source_type: prtimes_company
+    crawl_mode: shadow
+    config:
+      company_id: 13289
+      include_keywords: ["出資", "資本参加", "リード投資", "引受"]
+    notes: "VC cohort: 投資リリース (shadow)"
+
+  - name: ユニバーサル マテリアルズ インキュベーター
+    list_url: https://prtimes.jp/main/html/searchrlp/company_id/128426
+    enabled: true
+    source_type: prtimes_company
+    crawl_mode: shadow
+    config:
+      company_id: 128426
+      include_keywords: ["出資", "資本参加", "リード投資", "引受"]
+    notes: "VC cohort: 投資リリース (shadow)"
+
+  - name: 栖峰投資ワークス
+    list_url: https://prtimes.jp/main/html/searchrlp/company_id/36863
+    enabled: true
+    source_type: prtimes_company
+    crawl_mode: shadow
+    config:
+      company_id: 36863
+      include_keywords: ["出資", "資本参加", "リード投資", "引受"]
+    notes: "VC cohort: 投資リリース (shadow)"
+
+  - name: 大阪大学ベンチャーキャピタル
+    list_url: https://prtimes.jp/main/html/searchrlp/company_id/51435
+    enabled: true
+    source_type: prtimes_company
+    crawl_mode: shadow
+    config:
+      company_id: 51435
+      include_keywords: ["出資", "資本参加", "リード投資", "引受"]
+    notes: "VC cohort: 投資リリース (shadow)"
+
+  - name: 大鵬イノベーションズ
+    list_url: https://prtimes.jp/main/html/searchrlp/company_id/144042
+    enabled: true
+    source_type: prtimes_company
+    crawl_mode: shadow
+    config:
+      company_id: 144042
+      include_keywords: ["出資", "資本参加", "リード投資", "引受"]
+    notes: "VC cohort: 投資リリース (shadow)"
+
+  - name: 東京大学エッジキャピタルパートナーズ
+    list_url: https://prtimes.jp/main/html/searchrlp/company_id/78904
+    enabled: true
+    source_type: prtimes_company
+    crawl_mode: shadow
+    config:
+      company_id: 78904
+      include_keywords: ["出資", "資本参加", "リード投資", "引受"]
+    notes: "VC cohort: UTEC / 投資リリース (shadow)"
+
+  - name: ジャフコ グループ
+    list_url: https://prtimes.jp/main/html/searchrlp/company_id/57515
+    enabled: true
+    source_type: prtimes_company
+    crawl_mode: shadow
+    config:
+      company_id: 57515
+      include_keywords: ["出資", "資本参加", "リード投資", "引受"]
+    notes: "VC cohort: 投資リリース (shadow)"
+
+  - name: ケイエスピー
+    list_url: https://prtimes.jp/main/html/searchrlp/company_id/81202
+    enabled: true
+    source_type: prtimes_company
+    crawl_mode: shadow
+    config:
+      company_id: 81202
+      include_keywords: ["出資", "資本参加", "リード投資", "引受"]
+    notes: "VC cohort: KSP / 投資リリース (shadow)"
+
+  - name: 東京大学協創プラットフォーム開発
+    list_url: https://prtimes.jp/main/html/searchrlp/company_id/25017
+    enabled: true
+    source_type: prtimes_company
+    crawl_mode: shadow
+    config:
+      company_id: 25017
+      include_keywords: ["出資", "資本参加", "リード投資", "引受"]
+    notes: "VC cohort: 東大IPC / 投資リリース (shadow)"
+
   - name: アステラス製薬
     list_url: https://jp.newsroom.astellas.com/news
     enabled: true
