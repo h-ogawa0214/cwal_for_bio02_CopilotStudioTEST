@@ -27,7 +27,7 @@ companies:
     crawl_mode: shadow
     config:
       company_id: 118632
-      include_keywords: ["出資", "資本参加", "リード投資", "引受"]
+      include_keywords: ["出資", "資本参加", "リード投資", "引受", "ファンド", "投資事業有限責任組合"]
     notes: "VC cohort: 投資リリース (shadow)"
 
   - name: Beyond Next Ventures
@@ -37,7 +37,7 @@ companies:
     crawl_mode: shadow
     config:
       company_id: 17460
-      include_keywords: ["出資", "資本参加", "リード投資", "引受"]
+      include_keywords: ["出資", "資本参加", "リード投資", "引受", "ファンド", "投資事業有限責任組合"]
     notes: "VC cohort: 投資リリース (shadow)"
 
   - name: Diamond Medino Capital
@@ -47,7 +47,7 @@ companies:
     crawl_mode: shadow
     config:
       company_id: 112480
-      include_keywords: ["出資", "資本参加", "リード投資", "引受"]
+      include_keywords: ["出資", "資本参加", "リード投資", "引受", "ファンド", "投資事業有限責任組合"]
     notes: "VC cohort: 投資リリース (shadow)"
 
   - name: FFGベンチャービジネスパートナーズ
@@ -57,7 +57,7 @@ companies:
     crawl_mode: shadow
     config:
       company_id: 79435
-      include_keywords: ["出資", "資本参加", "リード投資", "引受"]
+      include_keywords: ["出資", "資本参加", "リード投資", "引受", "ファンド", "投資事業有限責任組合"]
     notes: "VC cohort: 投資リリース (shadow)"
 
   - name: Newsight Tech Angels
@@ -67,7 +67,7 @@ companies:
     crawl_mode: shadow
     config:
       company_id: 110083
-      include_keywords: ["出資", "資本参加", "リード投資", "引受"]
+      include_keywords: ["出資", "資本参加", "リード投資", "引受", "ファンド", "投資事業有限責任組合"]
     notes: "VC cohort: 投資リリース (shadow)"
 
   - name: Plug and Play Japan
@@ -77,7 +77,7 @@ companies:
     crawl_mode: shadow
     config:
       company_id: 28153
-      include_keywords: ["出資", "資本参加", "リード投資", "引受"]
+      include_keywords: ["出資", "資本参加", "リード投資", "引受", "ファンド", "投資事業有限責任組合"]
     notes: "VC cohort: 投資リリース (shadow)"
 
   - name: グローバル・ブレイン
@@ -87,7 +87,7 @@ companies:
     crawl_mode: shadow
     config:
       company_id: 47342
-      include_keywords: ["出資", "資本参加", "リード投資", "引受"]
+      include_keywords: ["出資", "資本参加", "リード投資", "引受", "ファンド", "投資事業有限責任組合"]
     notes: "VC cohort: 投資リリース (shadow)"
 
   - name: ニッセイ・キャピタル
@@ -97,7 +97,7 @@ companies:
     crawl_mode: shadow
     config:
       company_id: 43106
-      include_keywords: ["出資", "資本参加", "リード投資", "引受"]
+      include_keywords: ["出資", "資本参加", "リード投資", "引受", "ファンド", "投資事業有限責任組合"]
     notes: "VC cohort: 投資リリース (shadow)"
 
   - name: 日本アジア投資
@@ -107,7 +107,7 @@ companies:
     crawl_mode: shadow
     config:
       company_id: 120168
-      include_keywords: ["出資", "資本参加", "リード投資", "引受"]
+      include_keywords: ["出資", "資本参加", "リード投資", "引受", "ファンド", "投資事業有限責任組合"]
     notes: "VC cohort: 投資リリース (shadow)"
 
   - name: ファストトラックイニシアティブ
@@ -117,7 +117,7 @@ companies:
     crawl_mode: shadow
     config:
       company_id: 13289
-      include_keywords: ["出資", "資本参加", "リード投資", "引受"]
+      include_keywords: ["出資", "資本参加", "リード投資", "引受", "ファンド", "投資事業有限責任組合"]
     notes: "VC cohort: 投資リリース (shadow)"
 
   - name: ユニバーサル マテリアルズ インキュベーター
@@ -127,7 +127,7 @@ companies:
     crawl_mode: shadow
     config:
       company_id: 128426
-      include_keywords: ["出資", "資本参加", "リード投資", "引受"]
+      include_keywords: ["出資", "資本参加", "リード投資", "引受", "ファンド", "投資事業有限責任組合"]
     notes: "VC cohort: 投資リリース (shadow)"
 
   - name: 栖峰投資ワークス
@@ -137,7 +137,7 @@ companies:
     crawl_mode: shadow
     config:
       company_id: 36863
-      include_keywords: ["出資", "資本参加", "リード投資", "引受"]
+      include_keywords: ["出資", "資本参加", "リード投資", "引受", "ファンド", "投資事業有限責任組合"]
     notes: "VC cohort: 投資リリース (shadow)"
 
   - name: 大阪大学ベンチャーキャピタル
@@ -147,7 +147,7 @@ companies:
     crawl_mode: shadow
     config:
       company_id: 51435
-      include_keywords: ["出資", "資本参加", "リード投資", "引受"]
+      include_keywords: ["出資", "資本参加", "リード投資", "引受", "ファンド", "投資事業有限責任組合"]
     notes: "VC cohort: 投資リリース (shadow)"
 
   - name: 大鵬イノベーションズ
@@ -157,7 +157,7 @@ companies:
     crawl_mode: shadow
     config:
       company_id: 144042
-      include_keywords: ["出資", "資本参加", "リード投資", "引受"]
+      include_keywords: ["出資", "資本参加", "リード投資", "引受", "ファンド", "投資事業有限責任組合"]
     notes: "VC cohort: 投資リリース (shadow)"
 
   - name: 東京大学エッジキャピタルパートナーズ
@@ -167,7 +167,7 @@ companies:
     crawl_mode: shadow
     config:
       company_id: 78904
-      include_keywords: ["出資", "資本参加", "リード投資", "引受"]
+      include_keywords: ["出資", "資本参加", "リード投資", "引受", "ファンド", "投資事業有限責任組合"]
     notes: "VC cohort: UTEC / 投資リリース (shadow)"
 
   - name: ジャフコ グループ
@@ -177,7 +177,7 @@ companies:
     crawl_mode: shadow
     config:
       company_id: 57515
-      include_keywords: ["出資", "資本参加", "リード投資", "引受"]
+      include_keywords: ["出資", "資本参加", "リード投資", "引受", "ファンド", "投資事業有限責任組合"]
     notes: "VC cohort: 投資リリース (shadow)"
 
   - name: ケイエスピー
@@ -187,7 +187,7 @@ companies:
     crawl_mode: shadow
     config:
       company_id: 81202
-      include_keywords: ["出資", "資本参加", "リード投資", "引受"]
+      include_keywords: ["出資", "資本参加", "リード投資", "引受", "ファンド", "投資事業有限責任組合"]
     notes: "VC cohort: KSP / 投資リリース (shadow)"
 
   - name: 東京大学協創プラットフォーム開発
@@ -197,7 +197,7 @@ companies:
     crawl_mode: shadow
     config:
       company_id: 25017
-      include_keywords: ["出資", "資本参加", "リード投資", "引受"]
+      include_keywords: ["出資", "資本参加", "リード投資", "引受", "ファンド", "投資事業有限責任組合"]
     notes: "VC cohort: 東大IPC / 投資リリース (shadow)"
 
   - name: アステラス製薬

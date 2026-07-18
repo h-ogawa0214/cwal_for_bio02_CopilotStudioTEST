@@ -22,8 +22,17 @@ _COMPANY_API = (
 # Keyword tags that map to the magazine's 医薬（動物医薬含む）・創薬・バイオテクノロジー focus.
 DEFAULT_KEYWORDS = ["創薬", "バイオテクノロジー", "医薬品", "動物用医薬品"]
 
-# Titles that signal a VC actually made an investment (vs. events, hiring, funds).
-DEFAULT_INVESTMENT_KEYWORDS = ["出資", "資本参加", "リード投資", "引受"]
+# Titles that signal VC news we care about: an investment (出資/資本参加/…) or a
+# new fund being raised/established (ファンド/投資事業有限責任組合). Excludes
+# unrelated posts such as events, hiring, or organisational changes.
+DEFAULT_INVESTMENT_KEYWORDS = [
+    "出資",
+    "資本参加",
+    "リード投資",
+    "引受",
+    "ファンド",
+    "投資事業有限責任組合",
+]
 
 
 class PrTimesKeywordExtractor(Extractor):
@@ -114,8 +123,9 @@ class PrTimesCompanyExtractor(Extractor):
     ``/api/company_content.php/companies/<id>/press_releases`` returns clean
     JSON (title, url, publish date, poster name). ``config.company_id`` selects
     the issuer; ``config.include_keywords`` optionally keeps only titles that
-    match one of the given substrings (e.g. 出資/資本参加 for VC投資 news),
-    which keeps unrelated posts out of the LLM pipeline.
+    match one of the given substrings (e.g. 出資/資本参加 for VC投資 news and
+    ファンド/投資事業有限責任組合 for new-fund news), which keeps unrelated
+    posts out of the LLM pipeline.
     """
 
     source_type = "prtimes_company"

@@ -135,6 +135,56 @@ class EcoFoundationTests(unittest.TestCase):
         self.assertEqual(str(first.published_on), "2026-07-13")
         self.assertTrue(first.url.startswith("https://prtimes.jp/"))
 
+    def test_prtimes_company_extractor_keeps_new_fund_news(self) -> None:
+        payload = {
+            "status": 200,
+            "data": {
+                "total": 3,
+                "data": [
+                    {
+                        "id": 20,
+                        "title": "ディープテック特化3号ファンドを257億円でファイナルクローズ",
+                        "url": "/main/html/rd/p/000000020.000017460.html",
+                        "company": {"name_origin": "Beyond Next Ventures株式会社"},
+                        "release_comple_date": "2026-07-13T12:10:00+09:00",
+                    },
+                    {
+                        "id": 21,
+                        "title": "UMI3号脱炭素東京投資事業有限責任組合の設立について",
+                        "url": "/main/html/rd/p/000000021.000017460.html",
+                        "company": {"name_origin": "Beyond Next Ventures株式会社"},
+                        "release_comple_date": "2026-07-10T12:10:00+09:00",
+                    },
+                    {
+                        "id": 22,
+                        "title": "コミュニティ「BRAVE MATE」を設立",
+                        "url": "/main/html/rd/p/000000022.000017460.html",
+                        "company": {"name_origin": "Beyond Next Ventures株式会社"},
+                        "release_comple_date": "2026-07-01T12:10:00+09:00",
+                    },
+                ],
+            },
+        }
+        http = MagicMock()
+        http.get_text.return_value = json.dumps(payload)
+        company = Company(
+            name="Beyond Next Ventures",
+            list_url="https://prtimes.jp/main/html/searchrlp/company_id/17460",
+            source_type="prtimes_company",
+            crawl_mode="shadow",
+            config={
+                "company_id": 17460,
+                "include_keywords": ["出資", "ファンド", "投資事業有限責任組合"],
+            },
+        )
+        items = PrTimesCompanyExtractor(http).fetch(company, limit=10)
+        titles = {i.title for i in items}
+        # Fund establishment / close kept (incl. LPS-named fund without ファンド word).
+        self.assertIn("ディープテック特化3号ファンドを257億円でファイナルクローズ", titles)
+        self.assertIn("UMI3号脱炭素東京投資事業有限責任組合の設立について", titles)
+        # Non-fund "設立" (a community) is filtered out.
+        self.assertNotIn("コミュニティ「BRAVE MATE」を設立", titles)
+
     def test_prtimes_company_extractor_requires_company_id(self) -> None:
         http = MagicMock()
         company = Company(
