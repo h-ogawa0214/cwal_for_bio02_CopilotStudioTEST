@@ -2,9 +2,8 @@ from __future__ import annotations
 
 import json
 import re
+from dataclasses import dataclass, field
 from datetime import date, datetime, timezone
-
-from openai import OpenAI
 
 from .metrics import RunMetrics
 from .models import CuratedRelease, RawRelease
@@ -197,102 +196,120 @@ def compact_source_text(source_text: str, paragraph: str, *, max_chars: int = 35
     return text[:max_chars]
 
 
+@dataclass
+class PendingReview:
+    """A candidate that heuristics can't resolve alone; Claude Code judges it
+    directly in the review-queue JSON (see src/main.py --dump-for-review /
+    --apply-review). No LLM API call is made for this."""
+
+    preselected_lead: str
+    source_text: str
+    heuristic_hint: str  # "keep" | "discard" | "uncertain"
+    heuristic_reason: str
+    original_title: str
+    relevant_examples: list[dict] = field(default_factory=list)
+
+
+@dataclass
+class EvalResult:
+    # Exactly one of the two is set.
+    decision: dict | None = None
+    pending: PendingReview | None = None
+
+
 class Curator:
     def __init__(self, settings: Settings, metrics: RunMetrics | None = None) -> None:
         self.settings = settings
         self.criteria = _load_criteria()
         self.editorial_examples = _load_editorial_examples()
-        self.client = OpenAI(api_key=settings.openai_api_key) if settings.openai_api_key else None
         self.metrics = metrics or RunMetrics()
 
-    def curate(
+    def evaluate(
         self,
         release: RawRelease,
         paragraph: str,
-        reference_url: str = "",
         source_text: str = "",
-    ) -> CuratedRelease | None:
-        result, _decision = self.curate_with_decision(
-            release,
-            paragraph,
-            reference_url=reference_url,
-            source_text=source_text,
-        )
-        return result
-
-    def curate_with_decision(
-        self,
-        release: RawRelease,
-        paragraph: str,
-        reference_url: str = "",
-        source_text: str = "",
-    ) -> tuple[CuratedRelease | None, dict]:
-        published_on = release.published_on or date.today()
+    ) -> EvalResult:
+        """Cheap, deterministic pass only. Anything heuristics can't
+        confidently discard is queued for Claude Code's review instead of
+        being decided here."""
         paragraph = first_paragraph(paragraph or release.summary or release.title)
         title = normalize_whitespace(release.title)
-        decision = {
-            "decision": "discard",
-            "reason": "",
-            "model": self.settings.openai_model if self.client else "heuristic",
-            "criteria_version": self.settings.criteria_version,
-        }
 
         if _is_hard_discard_title(title):
             self.metrics.hard_discards += 1
-            decision.update({"decision": "hard_discard", "reason": "hard_title"})
-            return None, decision
+            return EvalResult(
+                decision={
+                    "decision": "hard_discard",
+                    "reason": "hard_title",
+                    "model": "heuristic",
+                    "criteria_version": self.settings.criteria_version,
+                }
+            )
 
         keep, reason = heuristic_decision(title, paragraph)
-        final_title = title
-        stage = "heuristic"
 
-        if keep is False and not any(marker in f"{title} {paragraph}" for marker in KEY_PERSONNEL_MARKERS):
-            # Cheap path: unambiguous title discards skip LLM entirely.
+        if keep is False and not any(
+            marker in f"{title} {paragraph}" for marker in KEY_PERSONNEL_MARKERS
+        ):
+            # Cheap path: unambiguous title discards skip review entirely.
             if any(kw in title for kw in DISCARD_KEYWORDS):
                 self.metrics.heuristic_discards += 1
-                decision.update({"decision": "discard", "reason": reason})
-                return None, decision
+                return EvalResult(
+                    decision={
+                        "decision": "discard",
+                        "reason": reason,
+                        "model": "heuristic",
+                        "criteria_version": self.settings.criteria_version,
+                    }
+                )
 
-        needs_editorial = keep is True
-        if self.client:
-            if keep is not True:
-                classification = self._llm_classify(title, paragraph, release.company)
-                stage = "classify"
-                verdict = str(classification.get("verdict") or "uncertain").lower()
-                reason = str(classification.get("reason") or reason)
-                if verdict == "discard":
-                    self.metrics.discarded += 1
-                    decision.update(
-                        {"decision": "discard", "reason": reason, "stage": stage}
-                    )
-                    return None, decision
-                needs_editorial = verdict in {"keep", "uncertain"}
-                keep = verdict == "keep"
-            if needs_editorial:
-                editorial = self._llm_edit(
-                    title,
-                    paragraph,
-                    release.company,
-                    source_text=source_text,
-                )
-                stage = "editorial"
-                keep = bool(editorial.get("keep", keep if keep is not None else False))
-                reason = str(editorial.get("reason") or reason)
-                final_title = (
-                    normalize_whitespace(str(editorial.get("title") or title)) or title
-                )
-                edited_lead = normalize_whitespace(str(editorial.get("lead") or ""))
-                if len(edited_lead) >= 40:
-                    paragraph = edited_lead
-        elif keep is None:
-            decision.update({"decision": "discard", "reason": "heuristic_undecided"})
-            return None, decision
+        # Everything else (heuristic keep still needing title/lead polish,
+        # heuristic discard that wasn't an unambiguous keyword hit, and
+        # heuristic "undecided") goes to Claude Code for judgment.
+        self.metrics.pending_review += 1
+        hint = "keep" if keep is True else ("discard" if keep is False else "uncertain")
+        examples = _prompt_examples(_select_examples(self.editorial_examples, title, paragraph))
+        return EvalResult(
+            pending=PendingReview(
+                preselected_lead=paragraph,
+                source_text=compact_source_text(source_text, paragraph),
+                heuristic_hint=hint,
+                heuristic_reason=reason,
+                original_title=title,
+                relevant_examples=examples,
+            )
+        )
+
+    def finalize_reviewed(
+        self,
+        release: RawRelease,
+        pending: PendingReview,
+        review: dict,
+        *,
+        reference_url: str = "",
+    ) -> tuple[CuratedRelease | None, dict]:
+        """Apply Claude Code's judgment (review: keep/reason/title/lead) to
+        build the same output shape the old LLM-backed path produced."""
+        published_on = release.published_on or date.today()
+        title = pending.original_title
+        keep = bool(review.get("keep"))
+        reason = str(review.get("reason") or "").strip() or "claude_code_review"
+        decision = {
+            "reason": reason,
+            "model": "claude-code",
+            "stage": "review",
+            "criteria_version": self.settings.criteria_version,
+        }
 
         if not keep:
             self.metrics.discarded += 1
-            decision.update({"decision": "discard", "reason": reason, "stage": stage})
+            decision["decision"] = "discard"
             return None, decision
 
+        final_title = normalize_whitespace(str(review.get("title") or title)) or title
+        edited_lead = normalize_whitespace(str(review.get("lead") or ""))
+        paragraph = edited_lead if len(edited_lead) >= 40 else pending.preselected_lead
         if len(final_title) < 8:
             final_title = self._fallback_title(title, paragraph)
 
@@ -310,103 +327,8 @@ class Curator:
             fetched_at=datetime.now(timezone.utc),
             source_type=release.source_type,
         )
-        decision.update({"decision": "keep", "reason": reason, "stage": stage})
+        decision["decision"] = "keep"
         return item, decision
-
-    def _llm_classify(self, title: str, paragraph: str, company: str) -> dict:
-        prompt = {
-            "company": company,
-            "source_title": title,
-            "preselected_lead": paragraph[:1200],
-            "instructions": (
-                "掲載可否だけを判定してください。"
-                "verdictは keep / discard / uncertain のいずれか。"
-                "明らかにIR定型・採用・説明会・自己株式などは discard。"
-                "治験・承認・提携・上市・重要経営人事は keep。"
-                "迷う場合のみ uncertain。"
-            ),
-            "criteria_summary": self.criteria[:1800],
-        }
-        response = self.client.chat.completions.create(
-            model=self.settings.openai_model,
-            temperature=0,
-            response_format={"type": "json_object"},
-            messages=[
-                {
-                    "role": "system",
-                    "content": (
-                        "You are a triage editor for a Japanese biotech magazine. "
-                        "Return JSON with keys: verdict (keep|discard|uncertain), reason (string)."
-                    ),
-                },
-                {"role": "user", "content": json.dumps(prompt, ensure_ascii=False)},
-            ],
-        )
-        self.metrics.classify_calls += 1
-        self.metrics.add_usage(getattr(response, "usage", None))
-        content = response.choices[0].message.content or "{}"
-        try:
-            data = json.loads(content)
-        except json.JSONDecodeError:
-            data = {"verdict": "uncertain", "reason": "llm_parse_error"}
-        if str(data.get("verdict") or "").lower() not in {"keep", "discard", "uncertain"}:
-            data["verdict"] = "uncertain"
-        return data
-
-    def _llm_edit(
-        self,
-        title: str,
-        paragraph: str,
-        company: str,
-        *,
-        source_text: str = "",
-    ) -> dict:
-        examples = _select_examples(self.editorial_examples, title, paragraph)
-        prompt = {
-            "company": company,
-            "source_title": title,
-            "preselected_lead": paragraph,
-            "source_text": compact_source_text(source_text, paragraph),
-            "instructions": (
-                "お手本と同じ編集方針で掲載タイトルとリードを作ってください。"
-                "keep=true/false、reasonは短く。"
-                "titleは発表主体を必要に応じて補い、多数主体は中心機関＋「など」に縮約。"
-                "親子会社が重要なら上場親会社も補う。"
-                "leadは原文の事実を変えず、明白な抽出崩れだけ修正。"
-            ),
-            "criteria": self.criteria,
-            "editorial_examples": _prompt_examples(examples),
-        }
-        response = self.client.chat.completions.create(
-            model=self.settings.openai_model,
-            temperature=0,
-            response_format={"type": "json_object"},
-            messages=[
-                {
-                    "role": "system",
-                    "content": (
-                        "You are an editor for a Japanese biotech/pharma magazine website. "
-                        "Follow the supplied publication examples. Return JSON with keys: "
-                        "keep (boolean), reason (string), title (string), lead (string)."
-                    ),
-                },
-                {"role": "user", "content": json.dumps(prompt, ensure_ascii=False)},
-            ],
-        )
-        self.metrics.editorial_calls += 1
-        self.metrics.add_usage(getattr(response, "usage", None))
-        content = response.choices[0].message.content or "{}"
-        try:
-            data = json.loads(content)
-        except json.JSONDecodeError:
-            data = {"keep": False, "reason": "llm_parse_error", "title": title}
-        if "keep" not in data:
-            data["keep"] = False
-        if "title" not in data or not str(data["title"]).strip():
-            data["title"] = title
-        if "lead" not in data or not str(data["lead"]).strip():
-            data["lead"] = paragraph
-        return data
 
     @staticmethod
     def _fallback_title(title: str, paragraph: str) -> str:

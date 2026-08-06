@@ -2,7 +2,6 @@ beautifulsoup4==4.13.4
 feedparser==6.0.11
 httpx==0.28.1
 lxml==5.4.0
-openai==1.93.0
 openpyxl==3.1.5
 playwright==1.53.0
 pydantic==2.11.7

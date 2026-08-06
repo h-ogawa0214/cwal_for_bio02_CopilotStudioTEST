@@ -14,8 +14,6 @@ ROOT = Path(__file__).resolve().parents[1]
 @dataclass(frozen=True)
 class Settings:
     excel_file_path: str
-    openai_api_key: str
-    openai_model: str
     lookback_days: int
     tdnet_lookback_days: int
     max_items_per_company: int
@@ -49,9 +47,6 @@ def load_settings() -> Settings:
 
     return Settings(
         excel_file_path=excel_file_path,
-        openai_api_key=os.getenv("OPENAI_API_KEY", "").strip(),
-        openai_model=(os.getenv("OPENAI_MODEL") or "gpt-4o-mini").strip()
-        or "gpt-4o-mini",
         lookback_days=int(os.getenv("LOOKBACK_DAYS", "14")),
         tdnet_lookback_days=int(os.getenv("TDNET_LOOKBACK_DAYS", "3")),
         max_items_per_company=int(os.getenv("MAX_ITEMS_PER_COMPANY", "30")),

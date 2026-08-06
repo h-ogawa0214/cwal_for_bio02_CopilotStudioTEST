@@ -7,8 +7,8 @@
 - 対象企業一覧を Excel ブックの `companies` シートで管理（社数増加を想定）
 - 自動スケジューラは使わず、Claude Code への実行指示で都度巡回
 - 掲載価値のあるリリースだけを `releases` シートへ追記
-- 除外・掲載の判定履歴を `decisions` に保存し、同日の再 LLM を抑制
-- run ごとのトークン・概算費用・ソース別件数を `metrics` に記録
+- 除外・掲載の判定履歴を `decisions` に保存し、同日の再判定を抑制
+- run ごとの件数・ソース別件数を `metrics` に記録
 - 具体的な原題はそのまま保持し、粗いタイトルだけ本文から補正
 - 一覧の抜粋ではなく、詳細ページ／PDF本文の上位段落を取得
 
@@ -55,23 +55,30 @@ TDnet に載らない未上場バイオ・研究団体の PR を補完します�
 （`release.tdnet.info`）からも直近数日分を補助取得します。  
 同一内容の重複は URL 正規化に加え、会社名・日付・表題の指紋、本文ハッシュでも抑制します。
 
-## 選出ロジック（API節約）
+## 選出ロジック（LLM APIを使わない）
 
-1. ハード除外タイトル（助成金受領・IR Q&A・払込完了など）
-2. タイトルキーワードの安価なヒューリスティック除外
-3. 軽量 LLM 一次判定（keep / discard / uncertain）
-4. keep / uncertain（およびヒューリスティック keep）だけ媒体向けタイトル・リード編集 LLM
-5. few-shot 例は全件ではなく記事種別に近い 2〜4 例だけ送る
+外部LLM APIは呼びません。掲載可否判定・タイトル/リード編集は、実行を指示した Claude Code
+（この対話エージェント自身）が `config/criteria.md` と `config/editorial_examples.json`
+の基準に沿って直接判断します。
 
-`OPENAI_API_KEY` が無い場合はヒューリスティックのみで動きます。
+1. ハード除外タイトル（助成金受領・IR Q&A・払込完了など）→ 自動除外
+2. タイトルキーワードの安価なヒューリスティック除外 → 自動除外
+3. 上記で決着しない候補（ヒューリスティック keep の編集待ち／discard の再確認／判断保留）を
+   `--dump-for-review` でレビューキュー（JSON）に書き出す
+4. Claude Code がそのJSONを読み、`config/criteria.md` の基準で keep/discard とタイトル・リードを判断し、
+   同じJSONの `pending[].review` に書き込む
+5. `--apply-review` でJSONを取り込み、Excelへ書き込む
+
+2段階（dump → apply）に分かれているのは、Claude Code が実際に候補内容を読んで判断する工程を
+はさむためです。`decisions` シートによる同日discardキャッシュは実行頻度に関わらず機能するため、
+1日に何度実行しても既に判定済みの記事は再度レビューしません。
 
 ## セットアップ
 
 ### 1. 出力先 Excel ファイル
 
 1. `.env` に `EXCEL_FILE_PATH` を設定（既定: `data/releases.xlsx`。このプロジェクトフォルダ自体が OneDrive 配下にあるため、既定のままで OneDrive 同期対象になります）
-2. `OPENAI_API_KEY` を登録（推奨。未設定ならヒューリスティックのみで動作）
-3. 任意で `OPENAI_MODEL`（既定: `gpt-4o-mini`）
+2. LLM APIキーは不要です（掲載可否判定はClaude Codeが対話の中で直接行います）
 
 ### 2. ローカル実行
 
@@ -82,18 +89,20 @@ pip install -r requirements.txt
 python -m playwright install chromium
 cp .env.example .env   # 値を埋める
 
-python -m src.main --seed-only   # companies / releases / decisions / metrics シート作成＋企業シード
-python -m src.main               # 巡回・選出・書き込み
-python -m src.main --company エーザイ --since 2026-07-01
-python -m src.main --reprocess-existing --company エーザイ --since 2026-07-01
+python -m src.main --seed-only                          # companies / releases / decisions / metrics シート作成＋企業シード
+python -m src.main --dump-for-review .tmp/review.json    # 巡回・抽出・ヒューリスティック除外までを実行
+# ここで Claude Code が .tmp/review.json の pending[].review を埋める
+python -m src.main --apply-review .tmp/review.json       # レビュー結果をExcelへ書き込み
+
+python -m src.main --dump-for-review .tmp/review.json --company エーザイ --since 2026-07-01
+python -m src.main --reprocess-existing --dump-for-review .tmp/review.json --company エーザイ --since 2026-07-01
 ```
 
-`--reprocess-existing` は課金防止のため `--company` または `--since` / `--until` が必須です。
+`--reprocess-existing` は再確認防止のため `--company` または `--since` / `--until` が必須です。
 
 ### 3. 実行タイミング
 
-自動スケジューラは使いません。**Claude Code のチャットで実行を指示した都度**、上記コマンドを実行します。  
-`decisions` シートによる同日discardキャッシュは実行頻度に関わらず機能するため、1日に何度実行しても再課金は抑制されます。
+自動スケジューラは使いません。**Claude Code のチャットで実行を指示した都度**、上記コマンドを実行します。
 
 ## 企業の追加方法
 
@@ -150,3 +159,5 @@ PR TIMES はカテゴリ別 RSS を提供していないため、キーワード
 - PDF 本文は先頭ページから段落抽出します（画像PDFは空になることがあります）
 - 同一 URL / 指紋は通常スキップします。再処理は対象を絞って実行してください
 - 実行中に `EXCEL_FILE_PATH`（既定 `data/releases.xlsx`）を Excel アプリで開いていると書き込みに失敗します。実行前に閉じてください
+- `--dump-for-review` が書き出すレビューキューJSON（既定 `.tmp/` 配下、gitignore済み）には、
+  掲載可否未決定の記事本文がそのまま含まれます。社外送信・共有はしないでください

@@ -7,6 +7,7 @@ from unittest.mock import MagicMock
 
 from src.curator import (
     Curator,
+    PendingReview,
     _is_hard_discard_title,
     _load_editorial_examples,
     _is_vague_title,
@@ -144,25 +145,15 @@ class ExtractionRegressionTests(unittest.TestCase):
         )
         self.assertIn("二つ目の段落", detail.source_text)
 
-    def test_curator_uses_editorial_title_and_lead(self) -> None:
+    def test_evaluate_defers_heuristic_keep_to_claude_code_review(self) -> None:
         from src.metrics import RunMetrics
 
         curator = Curator.__new__(Curator)
-        curator.client = object()
-        curator.settings = MagicMock(openai_model="gpt-4o-mini", criteria_version="test")
+        curator.settings = MagicMock(criteria_version="test")
         curator.metrics = RunMetrics()
-        curator._llm_classify = MagicMock(
-            return_value={"verdict": "keep", "reason": "pipeline fit"}
-        )
-        curator._llm_edit = MagicMock(
-            return_value={
-                "keep": True,
-                "reason": "editorial fit",
-                "title": "親会社、子会社が治験を開始",
-                "lead": "子会社は、対象患者における第III相試験を国内の複数施設で開始したことを発表しました。今後、有効性と安全性を評価します。",
-            }
-        )
-        item = curator.curate(
+        curator.editorial_examples = []
+
+        result = curator.evaluate(
             RawRelease(
                 company="親会社",
                 title="治験開始のお知らせ",
@@ -172,13 +163,47 @@ class ExtractionRegressionTests(unittest.TestCase):
             "子会社は治験を開始しました。",
             source_text="親会社の子会社は、対象患者における第III相試験を開始しました。",
         )
+        # No API call is made; heuristic keep is queued for Claude Code review
+        # (title/lead still need editorial polish).
+        self.assertIsNone(result.decision)
+        self.assertIsNotNone(result.pending)
+        self.assertEqual(result.pending.heuristic_hint, "keep")
+
+    def test_finalize_reviewed_applies_claude_code_editorial_judgment(self) -> None:
+        from src.metrics import RunMetrics
+
+        curator = Curator.__new__(Curator)
+        curator.settings = MagicMock(criteria_version="test")
+        curator.metrics = RunMetrics()
+
+        pending = PendingReview(
+            preselected_lead="子会社は治験を開始しました。",
+            source_text="親会社の子会社は、対象患者における第III相試験を開始しました。",
+            heuristic_hint="keep",
+            heuristic_reason="heuristic keep:治験",
+            original_title="治験開始のお知らせ",
+        )
+        item, decision = curator.finalize_reviewed(
+            RawRelease(
+                company="親会社",
+                title="治験開始のお知らせ",
+                url="https://example.com/release",
+                published_on=date(2026, 7, 18),
+            ),
+            pending,
+            {
+                "keep": True,
+                "reason": "editorial fit",
+                "title": "親会社、子会社が治験を開始",
+                "lead": "子会社は、対象患者における第III相試験を国内の複数施設で開始したことを発表しました。今後、有効性と安全性を評価します。",
+            },
+        )
         self.assertIsNotNone(item)
         assert item is not None
         self.assertEqual(item.title, "親会社、子会社が治験を開始")
         self.assertIn("対象患者", item.paragraph)
-        # Heuristic keep skips classify and goes straight to editorial.
-        curator._llm_classify.assert_not_called()
-        curator._llm_edit.assert_called_once()
+        self.assertEqual(decision["decision"], "keep")
+        self.assertEqual(decision["model"], "claude-code")
 
     def test_select_examples_limits_prompt_size(self) -> None:
         from src.curator import _select_examples

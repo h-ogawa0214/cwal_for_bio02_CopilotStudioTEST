@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 import sys
 from datetime import date, datetime, timezone, timedelta
+from pathlib import Path
 
 from .companies import load_companies_from_yaml
-from .curator import Curator
+from .curator import Curator, PendingReview
 from .dedupe import (
     canonicalize_url,
     content_hash,
@@ -70,7 +72,7 @@ def _merge_company_configs(
 
 
 def _cluster_candidates(raw_items: list[RawRelease]) -> list[RawRelease]:
-    """Collapse cross-source duplicates before detail fetch / LLM."""
+    """Collapse cross-source duplicates before detail fetch / review."""
     clusters: list[list[RawRelease]] = []
     for raw in raw_items:
         placed = False
@@ -150,7 +152,51 @@ def _source_overlap_stats(raw_items: list[RawRelease], metrics: RunMetrics) -> N
         )
 
 
-def _process_raw_items(
+def _pending_to_dict(
+    raw: RawRelease,
+    canonical: str,
+    fingerprint: str,
+    content_hash_value: str,
+    pending: PendingReview,
+) -> dict:
+    return {
+        "company": raw.company,
+        "url": raw.url,
+        "canonical_url": canonical,
+        "fingerprint": fingerprint,
+        "content_hash": content_hash_value,
+        "source_type": raw.source_type,
+        "reference_url": raw.reference_url,
+        "crawl_mode": raw.crawl_mode,
+        "published_on": raw.published_on.isoformat() if raw.published_on else "",
+        "original_title": pending.original_title,
+        "preselected_lead": pending.preselected_lead,
+        "source_text": pending.source_text,
+        "heuristic_hint": pending.heuristic_hint,
+        "heuristic_reason": pending.heuristic_reason,
+        "relevant_examples": pending.relevant_examples,
+        # Claude Code fills this in before --apply-review:
+        # {"keep": true/false, "reason": "...", "title": "...", "lead": "..."}
+        "review": None,
+    }
+
+
+def _pending_entry_to_raw(entry: dict) -> RawRelease:
+    published_on = (
+        date.fromisoformat(entry["published_on"]) if entry.get("published_on") else None
+    )
+    return RawRelease(
+        company=entry["company"],
+        title=entry.get("original_title", ""),
+        url=entry["url"],
+        published_on=published_on,
+        source_type=entry.get("source_type", ""),
+        reference_url=entry.get("reference_url", ""),
+        crawl_mode=entry.get("crawl_mode", "live"),
+    )
+
+
+def _dump_raw_items(
     raw_items: list[RawRelease],
     *,
     http: HttpClient,
@@ -159,12 +205,10 @@ def _process_raw_items(
     existing_urls: set[str],
     seen_fingerprints: set[str],
     decision_cache: dict[str, DecisionRecord],
-    decisions_out: list[DecisionRecord],
+    finalized: list[dict],
+    pending: list[dict],
     reprocess_existing: bool,
-    curated: list[CuratedRelease],
     metrics: RunMetrics,
-    company_modes: dict[str, str],
-    criteria_version: str,
 ) -> int:
     errors = 0
     for raw in raw_items:
@@ -179,10 +223,7 @@ def _process_raw_items(
         fingerprint = _fingerprint_for_raw(raw)
         if fingerprint in seen_fingerprints and not is_existing_url:
             logger.info(
-                "Skip duplicate %s | %s (%s)",
-                raw.company,
-                raw.title,
-                raw.source_type,
+                "Skip duplicate %s | %s (%s)", raw.company, raw.title, raw.source_type
             )
             metrics.duplicates_skipped += 1
             continue
@@ -199,10 +240,7 @@ def _process_raw_items(
         ):
             metrics.cache_hits += 1
             logger.info(
-                "Skip cached %s %s | %s",
-                cached.decision,
-                raw.company,
-                raw.title,
+                "Skip cached %s %s | %s", cached.decision, raw.company, raw.title
             )
             continue
 
@@ -227,88 +265,63 @@ def _process_raw_items(
                 if cached_body.decision in {"discard", "hard_discard"}:
                     metrics.cache_hits += 1
                     continue
-            item, decision_meta = curator.curate_with_decision(
-                raw,
-                detail.paragraph,
-                reference_url=detail.reference_url,
-                source_text=detail.source_text,
+
+            eval_result = curator.evaluate(
+                raw, detail.paragraph, source_text=detail.source_text
             )
         except Exception:
-            logger.exception("Failed to curate: %s", raw.url)
+            logger.exception("Failed to prepare for review: %s", raw.url)
             errors += 1
             metrics.fetch_errors += 1
             continue
 
-        record = DecisionRecord(
-            decided_at=datetime.now(timezone.utc),
-            company=raw.company,
-            published_on=(raw.published_on.isoformat() if raw.published_on else ""),
-            title=raw.title,
-            url=raw.url,
-            canonical_url=canonical,
-            fingerprint=fingerprint,
-            content_hash=content_hash(detail.source_text or detail.paragraph),
-            decision=str(decision_meta.get("decision") or "discard"),
-            reason=str(decision_meta.get("reason") or ""),
-            source_type=raw.source_type,
-            model=str(decision_meta.get("model") or ""),
-            criteria_version=str(
-                decision_meta.get("criteria_version") or criteria_version
-            ),
-        )
-        decisions_out.append(record)
-        for key in (
-            record.fingerprint,
-            record.canonical_url,
-            record.url,
-            record.content_hash,
-        ):
-            if key:
-                decision_cache[key] = record
+        canonical_now = canonicalize_url(raw.url)
+        content_hash_value = content_hash(detail.source_text or detail.paragraph)
 
-        if item is None:
-            continue
-
-        mode = raw.crawl_mode or company_modes.get(raw.company, "live")
-        item = item.model_copy(update={"crawl_mode": mode, "source_type": raw.source_type})
-        item_fingerprint = release_fingerprint(
-            item.company,
-            item.published_on,
-            item.original_title or item.title,
-        )
-        if item_fingerprint in seen_fingerprints and not is_existing_url:
-            logger.info(
-                "Skip duplicate %s | %s (%s)",
-                item.company,
-                item.title,
-                raw.source_type,
+        if eval_result.decision is not None:
+            record = DecisionRecord(
+                decided_at=datetime.now(timezone.utc),
+                company=raw.company,
+                published_on=(raw.published_on.isoformat() if raw.published_on else ""),
+                title=raw.title,
+                url=raw.url,
+                canonical_url=canonical_now,
+                fingerprint=fingerprint,
+                content_hash=content_hash_value,
+                decision=str(eval_result.decision.get("decision") or "discard"),
+                reason=str(eval_result.decision.get("reason") or ""),
+                source_type=raw.source_type,
+                model=str(eval_result.decision.get("model") or "heuristic"),
+                criteria_version=str(
+                    eval_result.decision.get("criteria_version")
+                    or curator.settings.criteria_version
+                ),
             )
-            metrics.duplicates_skipped += 1
+            finalized.append(json.loads(record.model_dump_json()))
+            logger.info(
+                "%s %s | %s", record.decision.upper(), raw.company, raw.title
+            )
             continue
 
-        if mode == "shadow":
-            logger.info("SHADOW KEEP %s | %s", item.company, item.title)
-            seen_fingerprints.add(fingerprint)
-            seen_fingerprints.add(item_fingerprint)
-            continue
-
-        curated.append(item)
-        existing_urls.add(item.url)
-        if canonical:
-            existing_urls.add(canonical)
-        seen_fingerprints.add(fingerprint)
-        seen_fingerprints.add(item_fingerprint)
-        logger.info("KEEP %s | %s", item.company, item.title)
+        assert eval_result.pending is not None
+        pending.append(
+            _pending_to_dict(
+                raw, canonical_now, fingerprint, content_hash_value, eval_result.pending
+            )
+        )
     return errors
 
 
-def run(
-    seed_only: bool = False,
-    reprocess_existing: bool = False,
+def dump_for_review(
+    path: str,
+    *,
     company_filter: list[str] | None = None,
     since: date | None = None,
     until: date | None = None,
+    reprocess_existing: bool = False,
 ) -> int:
+    """Phase 1: fetch, extract, and heuristically filter. Anything left over
+    is written to `path` for Claude Code to judge (see --apply-review)."""
     settings = load_settings()
     yaml_companies = load_companies_from_yaml()
     metrics = RunMetrics()
@@ -316,7 +329,7 @@ def run(
     if reprocess_existing and not (company_filter or since or until):
         logger.error(
             "--reprocess-existing requires --company and/or --since/--until "
-            "to avoid full-sheet rebilling"
+            "to avoid full-workbook rebilling"
         )
         return 2
 
@@ -333,14 +346,9 @@ def run(
             synced.get("updated_fields", 0),
         )
 
-    if seed_only:
-        return 0
-
     stored_companies = store.load_companies()
     companies = _merge_company_configs(
-        stored_companies,
-        yaml_companies,
-        shadow_default=settings.shadow_default,
+        stored_companies, yaml_companies, shadow_default=settings.shadow_default
     )
     if not companies:
         companies = [c for c in yaml_companies if c.enabled]
@@ -360,8 +368,8 @@ def run(
     curator = Curator(settings, metrics=metrics)
     cutoff = since or (date.today() - timedelta(days=settings.lookback_days))
 
-    curated: list[CuratedRelease] = []
-    decisions_out: list[DecisionRecord] = []
+    finalized: list[dict] = []
+    pending: list[dict] = []
     all_raw: list[RawRelease] = []
     errors = 0
     try:
@@ -408,9 +416,7 @@ def run(
         _source_overlap_stats(all_raw, metrics)
         clustered = _cluster_candidates(all_raw)
         logger.info(
-            "Candidates fetched=%s clustered=%s",
-            len(all_raw),
-            len(clustered),
+            "Candidates fetched=%s clustered=%s", len(all_raw), len(clustered)
         )
         if until:
             clustered = [
@@ -419,7 +425,7 @@ def run(
                 if not item.published_on or item.published_on <= until
             ]
 
-        errors += _process_raw_items(
+        errors += _dump_raw_items(
             clustered,
             http=http,
             curator=curator,
@@ -427,37 +433,188 @@ def run(
             existing_urls=existing_urls,
             seen_fingerprints=seen_fingerprints,
             decision_cache=decision_cache,
-            decisions_out=decisions_out,
+            finalized=finalized,
+            pending=pending,
             reprocess_existing=reprocess_existing,
-            curated=curated,
             metrics=metrics,
-            company_modes=company_modes,
-            criteria_version=settings.criteria_version,
         )
     finally:
         http.close()
+
+    for line in metrics.summary_lines():
+        logger.info(line)
+
+    session = {
+        "version": 1,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "dry_run": settings.dry_run,
+        "criteria_version": settings.criteria_version,
+        "company_modes": company_modes,
+        "metrics": metrics.to_dict(),
+        "errors": errors,
+        "finalized": finalized,
+        "pending": pending,
+    }
+    out_path = Path(path)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(
+        json.dumps(session, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    logger.info(
+        "Wrote review session to %s (finalized=%s, pending review=%s)",
+        out_path,
+        len(finalized),
+        len(pending),
+    )
+    if pending:
+        logger.info(
+            "%s件の判定待ちがあります。%s の pending[].review を埋めてから "
+            "--apply-review を実行してください。",
+            len(pending),
+            out_path,
+        )
+    if errors:
+        logger.warning("Completed with %s non-fatal errors", errors)
+    return 0
+
+
+def apply_review(path: str) -> int:
+    """Phase 2: consume Claude Code's filled-in review verdicts and write the
+    results to the Excel workbook."""
+    session_path = Path(path)
+    session = json.loads(session_path.read_text(encoding="utf-8"))
+    settings = load_settings()
+    metrics = RunMetrics.from_dict(session.get("metrics", {}))
+    company_modes: dict[str, str] = session.get("company_modes", {})
+    criteria_version = session.get("criteria_version") or settings.criteria_version
+
+    pending_entries: list[dict] = session.get("pending", [])
+    unresolved = [e for e in pending_entries if not e.get("review")]
+    if unresolved:
+        logger.error(
+            "%s件のレビューが未記入です。%s の pending[].review を埋めてから再実行してください。",
+            len(unresolved),
+            session_path,
+        )
+        return 2
+
+    curator = Curator(settings, metrics=metrics)
+    store = ExcelClient(settings)
+    existing_urls, seen_fingerprints = store.existing_release_keys()
+
+    decisions_out: list[DecisionRecord] = [
+        DecisionRecord.model_validate(d) for d in session.get("finalized", [])
+    ]
+    curated: list[CuratedRelease] = []
+
+    for entry in pending_entries:
+        raw = _pending_entry_to_raw(entry)
+        pending_payload = PendingReview(
+            preselected_lead=entry.get("preselected_lead", ""),
+            source_text=entry.get("source_text", ""),
+            heuristic_hint=entry.get("heuristic_hint", ""),
+            heuristic_reason=entry.get("heuristic_reason", ""),
+            original_title=entry.get("original_title", raw.title),
+            relevant_examples=entry.get("relevant_examples", []),
+        )
+        item, decision_meta = curator.finalize_reviewed(
+            raw,
+            pending_payload,
+            entry["review"],
+            reference_url=entry.get("reference_url", ""),
+        )
+
+        canonical = entry.get("canonical_url", "")
+        fingerprint = entry.get("fingerprint", "")
+        record = DecisionRecord(
+            decided_at=datetime.now(timezone.utc),
+            company=raw.company,
+            published_on=entry.get("published_on", ""),
+            title=pending_payload.original_title,
+            url=raw.url,
+            canonical_url=canonical,
+            fingerprint=fingerprint,
+            content_hash=entry.get("content_hash", ""),
+            decision=str(decision_meta.get("decision") or "discard"),
+            reason=str(decision_meta.get("reason") or ""),
+            source_type=raw.source_type,
+            model=str(decision_meta.get("model") or "claude-code"),
+            # Always the dump-time criteria_version from the session (not
+            # curator.settings, which reflects *this* apply-time process and
+            # could differ if config/criteria.md changed in between).
+            criteria_version=str(criteria_version),
+        )
+        decisions_out.append(record)
+
+        if item is None:
+            logger.info("DISCARD %s | %s", raw.company, pending_payload.original_title)
+            continue
+
+        mode = raw.crawl_mode or company_modes.get(raw.company, "live")
+        item = item.model_copy(update={"crawl_mode": mode, "source_type": raw.source_type})
+        item_fingerprint = release_fingerprint(
+            item.company, item.published_on, item.original_title or item.title
+        )
+        if item_fingerprint in seen_fingerprints:
+            logger.info("Skip duplicate %s | %s", item.company, item.title)
+            metrics.duplicates_skipped += 1
+            continue
+
+        if mode == "shadow":
+            logger.info("SHADOW KEEP %s | %s", item.company, item.title)
+            seen_fingerprints.add(fingerprint)
+            seen_fingerprints.add(item_fingerprint)
+            continue
+
+        curated.append(item)
+        existing_urls.add(item.url)
+        if canonical:
+            existing_urls.add(canonical)
+        seen_fingerprints.add(fingerprint)
+        seen_fingerprints.add(item_fingerprint)
+        logger.info("KEEP %s | %s", item.company, item.title)
 
     curated.sort(key=lambda x: (x.published_on, x.company, x.title), reverse=True)
     for line in metrics.summary_lines():
         logger.info(line)
 
-    if settings.dry_run:
-        logger.info("DRY_RUN enabled; skipping spreadsheet write (%s items)", len(curated))
+    dry_run = settings.dry_run or bool(session.get("dry_run"))
+    if dry_run:
+        logger.info(
+            "DRY_RUN enabled; skipping workbook write (%s items)", len(curated)
+        )
         for item in curated:
             print(
                 f"{item.published_on}\t{item.company}\t{item.title}\t{item.url}",
                 flush=True,
             )
-        if errors:
-            logger.warning("Completed with %s non-fatal errors", errors)
         return 0
 
     store.append_decisions(decisions_out)
     store.append_run_metrics(metrics)
     written = store.upsert_releases(curated)
-    logger.info("Upserted %s curated releases (%s fetch/curate errors)", written, errors)
+    logger.info("Upserted %s curated releases", written)
+    errors = int(session.get("errors") or 0)
     if errors:
-        logger.warning("Completed with %s non-fatal errors", errors)
+        logger.warning("Dump phase completed with %s non-fatal errors", errors)
+    return 0
+
+
+def seed_only_run() -> int:
+    settings = load_settings()
+    yaml_companies = load_companies_from_yaml()
+    store = ExcelClient(settings)
+    store.ensure_schema()
+    seeded = store.seed_companies_if_empty(yaml_companies)
+    if seeded:
+        logger.info("Seeded %s companies into workbook", seeded)
+    synced = store.sync_companies(yaml_companies)
+    if synced["appended"] or synced.get("updated_fields"):
+        logger.info(
+            "Synced companies sheet (appended=%s, updated_fields=%s)",
+            synced["appended"],
+            synced.get("updated_fields", 0),
+        )
     return 0
 
 
@@ -466,7 +623,20 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--seed-only",
         action="store_true",
-        help="Only ensure spreadsheet schema and seed companies sheet",
+        help="Only ensure the workbook schema and seed the companies sheet",
+    )
+    parser.add_argument(
+        "--dump-for-review",
+        metavar="PATH",
+        help=(
+            "Fetch/extract/heuristically filter, then write a review-queue "
+            "JSON to PATH for Claude Code to judge"
+        ),
+    )
+    parser.add_argument(
+        "--apply-review",
+        metavar="PATH",
+        help="Consume a review-queue JSON (with pending[].review filled in) and write to the workbook",
     )
     parser.add_argument(
         "--reprocess-existing",
@@ -492,13 +662,24 @@ def main(argv: list[str] | None = None) -> int:
         help="Only consider items on/before this date (YYYY-MM-DD)",
     )
     args = parser.parse_args(argv)
-    return run(
-        seed_only=args.seed_only,
-        reprocess_existing=args.reprocess_existing,
-        company_filter=args.company or None,
-        since=args.since,
-        until=args.until,
+
+    if args.seed_only:
+        return seed_only_run()
+    if args.apply_review:
+        return apply_review(args.apply_review)
+    if args.dump_for_review:
+        return dump_for_review(
+            args.dump_for_review,
+            company_filter=args.company or None,
+            since=args.since,
+            until=args.until,
+            reprocess_existing=args.reprocess_existing,
+        )
+    parser.error(
+        "--seed-only, --dump-for-review PATH, --apply-review PATH のいずれかを指定してください"
+        "（自動LLM判定は廃止し、Claude Codeによる都度レビューに置き換えました）"
     )
+    return 2  # unreachable; parser.error() exits
 
 
 if __name__ == "__main__":
