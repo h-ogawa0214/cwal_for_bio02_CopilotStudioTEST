@@ -1,7 +1,12 @@
-# OpenAI → Anthropic (Claude) 移行設計方針（ドラフト）
+# OpenAI → Anthropic (Claude) 移行設計方針（ドラフト・不採用）
 
 作成日: 2026-08-06
-ステータス: **設計方針のみ。実装未着手。**
+ステータス: **不採用。** 本ドキュメントが検討していた「Anthropic APIへの自動呼び出し切替」
+（案A）ではなく、**LLM APIを一切呼ばず、Claude Code（この対話エージェント）が
+`--dump-for-review` / `--apply-review` の間で直接判定する方式（案B）を採用**した。
+実装は完了済み。詳細は [infra_migration_plan.md](infra_migration_plan.md) と
+`src/curator.py` の `evaluate()` / `finalize_reviewed()`、`README.md` の
+「選出ロジック」節を参照。本ファイルは検討過程の記録として残す。
 
 ## 目的
 

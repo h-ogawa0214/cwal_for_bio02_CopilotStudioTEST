@@ -1,7 +1,10 @@
-# GitHub Actions 脱却・実行モデル変更 設計方針（ドラフト）
+# GitHub Actions 脱却・実行モデル変更 設計方針
 
 作成日: 2026-08-06
-ステータス: **設計方針のみ。実装未着手。**
+ステータス: **実装済み。** リポジトリはご自身のGitHubアカウント
+（`h-ogawa0214/cwal_for_bio01`）へ移行し、`excel_client.py`・`crawl.yml`削除・
+README更新まで完了。掲載可否判定もOpenAIではなくClaude Codeが直接行う方式
+（[anthropic_migration_plan.md](anthropic_migration_plan.md) の案Bを採用）で実装済み。
 
 ## 背景・決定事項
 
@@ -35,17 +38,18 @@
 3. **実行頻度がユーザー任せになる** — 自動での「1日3回」保証がなくなるため、記事の取得漏れ・遅延は
    ユーザーが指示するタイミングに依存する。
 
-## 未決定事項
+## 決定事項（更新）
 
-1. **コードのバージョン管理の置き場所** — ローカル git のみか、社内の別Git基盤（Azure DevOps等）を使うか。
-2. **実装着手のタイミング** — 設計整理を続けるか、`excel_client.py` 実装 / `crawl.yml` 削除 / README更新に進むか。
-3. OpenAI→Anthropic移行（[anthropic_migration_plan.md](anthropic_migration_plan.md)）とこの変更を同時に進めるか、別々に進めるか。
+1. **コードのバージョン管理の置き場所** — GitHub継続。ただし山地さん（Licca-07）のリポジトリとは
+   独立させ、ご自身のアカウント（`h-ogawa0214/cwal_for_bio01`）に新規作成して全履歴を移行。
+   山地さん側にのみ存在した直近8コミット分（PR TIMES企業別抽出器等）は今回未反映。
+2. 掲載可否判定・タイトル/リード編集はOpenAI/Anthropic APIのどちらも使わず、
+   Claude Codeが `--dump-for-review` / `--apply-review` の間で直接判定する方式を採用。
 
-## 次のアクション（着手時）
+## 完了済みアクション
 
-- [ ] バージョン管理方針を確定
-- [ ] `excel_client.py` を実装し、`sheets_client.py` と同等のインターフェース（`ensure_schema`/`load_companies`/
-      `existing_release_keys`/`load_decision_cache`/`append_decisions`/`append_run_metrics`/`upsert_releases`）を
-      維持しつつ Excel 版として作成
-- [ ] `.github/workflows/crawl.yml` を削除
-- [ ] README・`.env.example` を更新
+- [x] `excel_client.py` を実装（`sheets_client.py` と同等インターフェース）
+- [x] `.github/workflows/crawl.yml` を削除
+- [x] README・`.env.example` を更新
+- [x] OpenAI連携を廃止し、Claude Codeレビュー方式に置き換え（`curator.py`の`evaluate()`/`finalize_reviewed()`、
+      `main.py`の`--dump-for-review`/`--apply-review`）
