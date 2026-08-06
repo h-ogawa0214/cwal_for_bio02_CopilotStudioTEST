@@ -40,13 +40,16 @@ def _criteria_version() -> str:
 
 def load_settings() -> Settings:
     load_dotenv(ROOT / ".env")
-    excel_file_path = os.getenv(
-        "EXCEL_FILE_PATH",
-        str(ROOT / "data" / "releases.xlsx"),
-    ).strip()
+    raw_excel_path = os.getenv("EXCEL_FILE_PATH", "data/releases.xlsx").strip()
+    excel_path = Path(raw_excel_path)
+    if not excel_path.is_absolute():
+        # Resolve relative to the project root (not the process's current
+        # working directory, which can vary depending on how/where the
+        # command is invoked).
+        excel_path = ROOT / excel_path
 
     return Settings(
-        excel_file_path=excel_file_path,
+        excel_file_path=str(excel_path),
         lookback_days=int(os.getenv("LOOKBACK_DAYS", "14")),
         tdnet_lookback_days=int(os.getenv("TDNET_LOOKBACK_DAYS", "3")),
         max_items_per_company=int(os.getenv("MAX_ITEMS_PER_COMPANY", "30")),
