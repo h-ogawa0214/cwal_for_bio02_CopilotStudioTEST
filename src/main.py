@@ -14,12 +14,12 @@ from .dedupe import (
     titles_likely_same,
 )
 from .detail import extract_release_detail
+from .excel_client import ExcelClient
 from .extractors import fetch_company_releases, fetch_tdnet_releases
 from .http_client import HttpClient
 from .metrics import RunMetrics
 from .models import Company, CuratedRelease, DecisionRecord, RawRelease
 from .settings import load_settings
-from .sheets_client import SheetsClient
 
 
 logging.basicConfig(
@@ -39,7 +39,7 @@ def _merge_company_configs(
     *,
     shadow_default: bool,
 ) -> list[Company]:
-    """YAML is authority for crawl config; Sheets owns enabled + crawl_mode override."""
+    """YAML is authority for crawl config; Excel workbook owns enabled + crawl_mode override."""
     locally_disabled = {c.name for c in yaml_companies if not c.enabled}
     yaml_by_name = {c.name: c for c in yaml_companies}
     companies: list[Company] = []
@@ -320,16 +320,12 @@ def run(
         )
         return 2
 
-    if not settings.google_service_account_json:
-        logger.error("Google service account credentials are missing")
-        return 2
-
-    sheets = SheetsClient(settings)
-    sheets.ensure_schema()
-    seeded = sheets.seed_companies_if_empty(yaml_companies)
+    store = ExcelClient(settings)
+    store.ensure_schema()
+    seeded = store.seed_companies_if_empty(yaml_companies)
     if seeded:
-        logger.info("Seeded %s companies into spreadsheet", seeded)
-    synced = sheets.sync_companies(yaml_companies)
+        logger.info("Seeded %s companies into workbook", seeded)
+    synced = store.sync_companies(yaml_companies)
     if synced["appended"] or synced.get("updated_fields"):
         logger.info(
             "Synced companies sheet (appended=%s, updated_fields=%s)",
@@ -340,9 +336,9 @@ def run(
     if seed_only:
         return 0
 
-    sheet_companies = sheets.load_companies()
+    stored_companies = store.load_companies()
     companies = _merge_company_configs(
-        sheet_companies,
+        stored_companies,
         yaml_companies,
         shadow_default=settings.shadow_default,
     )
@@ -358,8 +354,8 @@ def run(
             return 2
 
     company_modes = {c.name: c.crawl_mode for c in companies}
-    existing_urls, seen_fingerprints = sheets.existing_release_keys()
-    decision_cache = sheets.load_decision_cache()
+    existing_urls, seen_fingerprints = store.existing_release_keys()
+    decision_cache = store.load_decision_cache()
     http = HttpClient(settings.user_agent, settings.request_timeout_seconds)
     curator = Curator(settings, metrics=metrics)
     cutoff = since or (date.today() - timedelta(days=settings.lookback_days))
@@ -456,9 +452,9 @@ def run(
             logger.warning("Completed with %s non-fatal errors", errors)
         return 0
 
-    sheets.append_decisions(decisions_out)
-    sheets.append_run_metrics(metrics)
-    written = sheets.upsert_releases(curated)
+    store.append_decisions(decisions_out)
+    store.append_run_metrics(metrics)
+    written = store.upsert_releases(curated)
     logger.info("Upserted %s curated releases (%s fetch/curate errors)", written, errors)
     if errors:
         logger.warning("Completed with %s non-fatal errors", errors)

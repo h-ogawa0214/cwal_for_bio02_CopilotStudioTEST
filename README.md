@@ -1,11 +1,11 @@
 # pr-disclosure-curator
 
-創薬・バイオテクノロジー関連企業のプレスリリース／適時開示を巡回し、雑誌サイト掲載に値するものだけを Google スプレッドシートへ書き出すツールです。
+創薬・バイオテクノロジー関連企業のプレスリリース／適時開示を巡回し、雑誌サイト掲載に値するものだけを Excel ブック（OneDrive）へ書き出すツールです。
 
 ## できること
 
-- 対象企業一覧をスプレッドシートの `companies` シートで管理（社数増加を想定）
-- 1日3回（JST 9:00 / 12:00 / 17:00）GitHub Actions で巡回
+- 対象企業一覧を Excel ブックの `companies` シートで管理（社数増加を想定）
+- 自動スケジューラは使わず、Claude Code への実行指示で都度巡回
 - 掲載価値のあるリリースだけを `releases` シートへ追記
 - 除外・掲載の判定履歴を `decisions` に保存し、同日の再 LLM を抑制
 - run ごとのトークン・概算費用・ソース別件数を `metrics` に記録
@@ -22,9 +22,9 @@
 ## 対象企業
 
 `config/companies.yaml` が `list_url` / `source_type` / 抽出設定の正本です。  
-Google Sheets は `enabled` と `crawl_mode`（live / shadow）など運用上書きに使います。
+Excel ブックは `enabled` と `crawl_mode`（live / shadow）など運用上書きに使います。
 
-起動時に YAML → Sheets へ同期します（未登録社の追記、`list_url` / `source_type` / `config_json` / `stock_code` の更新）。
+起動時に YAML → Excel ブックへ同期します（未登録社の追記、`list_url` / `source_type` / `config_json` / `stock_code` の更新）。
 
 大手などは各社サイト抽出（`html_css` / `rss` / `xlsx` / `json_api` / `sitemap` / `eir` / `playwright`）を使い、
 それ以外の上場企業は当面 `tdnet_only`（公式 TDnet 閲覧サービスのみ）でカバーします。
@@ -67,15 +67,11 @@ TDnet に載らない未上場バイオ・研究団体の PR を補完します�
 
 ## セットアップ
 
-### 1. Google サービスアカウント
+### 1. 出力先 Excel ファイル
 
-1. Google Cloud でサービスアカウントを作成し、JSON 鍵を発行
-2. 対象スプレッドシートを、そのサービスアカウントのメールアドレスに **編集者** で共有  
-   - スプレッドシート: https://docs.google.com/spreadsheets/d/1JlnCTJgC3ZdJ5WrHL9O6yPJsUE8uoVMEdGNSC8xb_6Y/edit
-3. JSON 全体を GitHub Secret `GOOGLE_SERVICE_ACCOUNT_JSON` に登録
-4. Secret `SPREADSHEET_ID` に `1JlnCTJgC3ZdJ5WrHL9O6yPJsUE8uoVMEdGNSC8xb_6Y`
-5. Secret `OPENAI_API_KEY` を登録（推奨）
-6. 任意で Secret / Variable `OPENAI_MODEL`（既定: `gpt-4o-mini`）
+1. `.env` に `EXCEL_FILE_PATH` を設定（既定: `data/releases.xlsx`。このプロジェクトフォルダ自体が OneDrive 配下にあるため、既定のままで OneDrive 同期対象になります）
+2. `OPENAI_API_KEY` を登録（推奨。未設定ならヒューリスティックのみで動作）
+3. 任意で `OPENAI_MODEL`（既定: `gpt-4o-mini`）
 
 ### 2. ローカル実行
 
@@ -94,15 +90,15 @@ python -m src.main --reprocess-existing --company エーザイ --since 2026-07-0
 
 `--reprocess-existing` は課金防止のため `--company` または `--since` / `--until` が必須です。
 
-### 3. GitHub Actions
+### 3. 実行タイミング
 
-`.github/workflows/crawl.yml` が UTC 0:00 / 3:00 / 8:00（= JST 9 / 12 / 17）で実行します。  
-Actions タブから `workflow_dispatch` でも手動実行できます。
+自動スケジューラは使いません。**Claude Code のチャットで実行を指示した都度**、上記コマンドを実行します。  
+`decisions` シートによる同日discardキャッシュは実行頻度に関わらず機能するため、1日に何度実行しても再課金は抑制されます。
 
 ## 企業の追加方法
 
 1. **まず** `config/companies.yaml` に追加（正本）
-2. 必要なら Sheets で `enabled` / `crawl_mode` だけ上書き
+2. 必要なら Excel ブックで `enabled` / `crawl_mode` だけ上書き
 3. 次回実行で同期・巡回される
 
 例（静的 HTML）:
@@ -153,3 +149,4 @@ PR TIMES はカテゴリ別 RSS を提供していないため、キーワード
 - 公式ソースが壊れたらその社だけ `tdnet_only` / `enabled: false` に戻し、TDnet は継続します
 - PDF 本文は先頭ページから段落抽出します（画像PDFは空になることがあります）
 - 同一 URL / 指紋は通常スキップします。再処理は対象を絞って実行してください
+- 実行中に `EXCEL_FILE_PATH`（既定 `data/releases.xlsx`）を Excel アプリで開いていると書き込みに失敗します。実行前に閉じてください

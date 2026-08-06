@@ -20,3 +20,6 @@ output/
 .tmp/
 playwright-report/
 test-results/
+
+# Local data (OneDrive Excel workbook)
+data/

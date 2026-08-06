@@ -1,7 +1,5 @@
 beautifulsoup4==4.13.4
 feedparser==6.0.11
-gspread==6.2.1
-google-auth==2.40.3
 httpx==0.28.1
 lxml==5.4.0
 openai==1.93.0

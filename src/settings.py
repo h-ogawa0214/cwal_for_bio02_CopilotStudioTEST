@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import hashlib
-import json
 import os
 from dataclasses import dataclass
 from pathlib import Path
@@ -14,8 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 @dataclass(frozen=True)
 class Settings:
-    spreadsheet_id: str
-    google_service_account_json: str
+    excel_file_path: str
     openai_api_key: str
     openai_model: str
     lookback_days: int
@@ -44,23 +42,13 @@ def _criteria_version() -> str:
 
 def load_settings() -> Settings:
     load_dotenv(ROOT / ".env")
-    sa_json = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "").strip()
-    sa_file = os.getenv("GOOGLE_SERVICE_ACCOUNT_FILE", "").strip()
-    if not sa_json and sa_file:
-        sa_json = Path(sa_file).read_text(encoding="utf-8")
-    if sa_json and not sa_json.startswith("{"):
-        maybe_path = Path(sa_json)
-        if maybe_path.exists():
-            sa_json = maybe_path.read_text(encoding="utf-8")
-
-    spreadsheet_id = os.getenv(
-        "SPREADSHEET_ID",
-        "1JlnCTJgC3ZdJ5WrHL9O6yPJsUE8uoVMEdGNSC8xb_6Y",
+    excel_file_path = os.getenv(
+        "EXCEL_FILE_PATH",
+        str(ROOT / "data" / "releases.xlsx"),
     ).strip()
 
     return Settings(
-        spreadsheet_id=spreadsheet_id,
-        google_service_account_json=sa_json,
+        excel_file_path=excel_file_path,
         openai_api_key=os.getenv("OPENAI_API_KEY", "").strip(),
         openai_model=(os.getenv("OPENAI_MODEL") or "gpt-4o-mini").strip()
         or "gpt-4o-mini",
@@ -80,17 +68,3 @@ def load_settings() -> Settings:
         shadow_default=os.getenv("SHADOW_DEFAULT", "").lower() in {"1", "true", "yes"},
         criteria_version=_criteria_version(),
     )
-
-
-def validate_service_account_json(raw: str) -> dict:
-    if not raw:
-        raise RuntimeError(
-            "GOOGLE_SERVICE_ACCOUNT_JSON (or GOOGLE_SERVICE_ACCOUNT_FILE) is required"
-        )
-    try:
-        data = json.loads(raw)
-    except json.JSONDecodeError as exc:
-        raise RuntimeError("GOOGLE_SERVICE_ACCOUNT_JSON is not valid JSON") from exc
-    if data.get("type") != "service_account":
-        raise RuntimeError("Credentials JSON must be a Google service account key")
-    return data
