@@ -475,8 +475,10 @@ AI の判定は一次判断として扱い、掲載前に人の承認を必須�
 8. **判定プロンプトの精度** — [judge_prompt_draft.md](judge_prompt_draft.md) は未実行。
    [prtimes_expected_90d.md](prtimes_expected_90d.md) の想定判定（keep 1 / discard 21）と
    突き合わせて測る
-9. **掲載領域の定義** — `config/criteria.md` に領域（創薬・バイオの範囲）が明文化されていない。
-   フードテック・バイオ生産を含めるかが未定義で、境界事例の判定が安定しない。人の判断が必要
+9. ~~掲載領域の定義~~ → **解決**。2026-08-14 にフードテック・バイオ生産を含める判断を得て、
+   `config/criteria.md` に「対象領域」節として明文化した。
+   なお `criteria_version`（`settings.py:31`）は criteria.md の SHA256 を含むため、
+   この追記で版が変わる。Python 側の判定履歴との突き合わせでは版差に注意する
 6. **API の利用規約上の位置づけ** — `company_content.php` は公開ドキュメントのない内部 API。
    Microsoft のクラウド IP からの定期アクセスに変わるため、レート制限やブロックの扱いは要確認
 7. **`prtimes.jp` へのアクセス頻度** — 一覧 18 本＋詳細（候補件数分）。日次で問題ない規模だが、
